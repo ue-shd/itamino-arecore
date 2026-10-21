@@ -1,0 +1,1351 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>痛みのカタチ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root {
+    --paper: #f6f1e8;
+    --card: #fffdf8;
+    --ink: #3d362e;
+    --muted: #8b8174;
+    --faint: #b9afa2;
+    --line: rgba(90, 70, 45, 0.10);
+    --soft: #efe8dc;
+    --shadow: 0 6px 24px rgba(90, 70, 45, 0.07), 0 1px 3px rgba(90, 70, 45, 0.06);
+    --round: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif;
+    --grain: none;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: var(--grain), var(--paper);
+    color: var(--ink);
+    font-family: var(--round);
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    touch-action: none; overscroll-behavior: none;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  #words, #lanes { scrollbar-width: none; }
+  #words::-webkit-scrollbar, #lanes::-webkit-scrollbar { display: none; }
+  h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: .06em; }
+  .sub { color: var(--muted); font-size: 12px; line-height: 1.65; font-weight: 500; }
+
+  #app {
+    position: fixed; inset: 0;
+    padding: calc(env(safe-area-inset-top) + 10px) calc(env(safe-area-inset-right) + 12px)
+             calc(env(safe-area-inset-bottom) + 12px) calc(env(safe-area-inset-left) + 12px);
+    display: grid; gap: 12px;
+    grid-template-columns: 236px minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas: "top top" "pal stage" "pal rhy";
+  }
+  .panel { background: var(--grain), var(--card); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow); }
+
+  /* ---- header ---- */
+  #top { grid-area: top; display: flex; align-items: center; gap: 18px; padding: 2px 4px 0 8px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; letter-spacing: .08em; }
+  .brand .orb {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #e4e6ea, #8f939d 55%, #5d616b);
+    box-shadow: 0 3px 6px rgba(90,70,45,.18), inset 0 0 0 1px rgba(90,70,45,.08);
+  }
+  #steps { display: flex; gap: 6px; margin: 0 auto; padding: 0; list-style: none; }
+  #steps li {
+    display: flex; align-items: center; gap: 8px; padding: 7px 14px 7px 8px; border-radius: 99px;
+    font-size: 13px; color: var(--faint); font-weight: 700; transition: color .3s, background .3s;
+  }
+  #steps li b {
+    width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px;
+    border: 1.5px solid currentColor;
+  }
+  #steps li.now { color: var(--ink); background: var(--card); box-shadow: var(--shadow); }
+  #steps li.now b { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  #steps li.done { color: var(--muted); }
+  .btn {
+    border: 1.5px solid var(--line); background: var(--card); border-radius: 99px;
+    padding: 11px 20px; font-size: 14px; font-weight: 700; transition: transform .12s, opacity .2s;
+  }
+  .btn:active { transform: scale(.95); }
+  .btn:disabled { opacity: .35; pointer-events: none; }
+  .btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); box-shadow: 0 6px 18px rgba(61,54,46,.22); }
+  .btn.small { padding: 7px 14px; font-size: 12.5px; }
+  .btn.ghost { background: transparent; }
+
+  /* ---- palette ---- */
+  #palette { grid-area: pal; padding: 16px 12px 12px; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+  #palette h2, #palette .sub { padding: 0 4px; }
+  #words { flex: 1; overflow-y: auto; touch-action: pan-y; display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+  .word {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    border: 1.5px solid transparent; border-radius: 14px; background: transparent; padding: 4px 8px;
+    transition: background .2s, border-color .2s, transform .12s;
+  }
+  .word canvas { width: 30px; height: 30px; flex: none; }
+  .word .n { font-size: 15px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+  .sec { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .14em; margin: 16px 4px 0; }
+  .sec:first-child { margin-top: 2px; }
+  .grp { margin: 10px 4px 3px; padding-left: 9px; border-left: 3px solid var(--c); }
+  .grp .gh { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
+  .grp .gh b { color: var(--c); }
+  .grp .tm { margin-left: auto; font-size: 10.5px; color: var(--muted); background: var(--soft); padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+  .grp .gd { font-size: 11px; color: var(--muted); line-height: 1.5; margin-top: 2px; font-weight: 500; }
+  .src { font-size: 10.5px; color: var(--faint); line-height: 1.6; margin: 16px 4px 6px; font-weight: 500; }
+  .word:active { transform: scale(.97); background: var(--soft); }
+  .word.used { background: color-mix(in srgb, var(--c) 10%, transparent); border-color: color-mix(in srgb, var(--c) 40%, transparent); }
+  .word .cnt { margin-left: auto; font-size: 11px; color: var(--c); font-weight: 700; }
+
+  /* ---- stage ---- */
+  #stage { grid-area: stage; position: relative; min-height: 0; min-width: 0; overflow: hidden; }
+  #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; border-radius: 24px; }
+  #hint {
+    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); width: 84%;
+    text-align: center; pointer-events: none; transition: opacity .5s;
+  }
+  #hint .big { font-size: 21px; font-weight: 700; letter-spacing: .06em; margin-bottom: 8px; }
+  #hint .sub { font-size: 13.5px; }
+  #stageTip {
+    position: absolute; left: 18px; top: 14px; font-size: 11.5px; color: var(--faint); font-weight: 700;
+    pointer-events: none; letter-spacing: .04em;
+  }
+  #resetBtn {
+    position: absolute; right: 14px; top: 10px; opacity: 0; pointer-events: none; transition: opacity .3s;
+  }
+  #resetBtn.show { opacity: 1; pointer-events: auto; }
+  #toast {
+    position: absolute; left: 50%; top: 16px; transform: translateX(-50%); padding: 8px 16px; border-radius: 99px;
+    background: var(--ink); font-size: 13px; color: var(--paper); pointer-events: none; opacity: 0; transition: opacity .4s;
+    white-space: nowrap; font-weight: 700;
+  }
+  #rec {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    display: none; align-items: center; gap: 12px; padding: 9px 18px; border-radius: 99px;
+    background: var(--ink); color: var(--paper); font-size: 15px; font-variant-numeric: tabular-nums; pointer-events: none;
+  }
+  #rec .dot { width: 10px; height: 10px; border-radius: 50%; background: #e0584b; animation: blink 1s infinite; }
+  #rec .prog { width: 140px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.25); overflow: hidden; }
+  #rec .prog i { display: block; height: 100%; width: 0; background: var(--paper); }
+  @keyframes blink { 50% { opacity: .25; } }
+
+  /* ---- rhythm ---- */
+  #rhythm { grid-area: rhy; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  #rhythm .head { display: flex; align-items: center; gap: 10px; }
+  #rhythm .head .sp { flex: 1; }
+  #rhythm .head h2, #rhythm .head .btn { white-space: nowrap; flex: none; }
+  #rhythm .head .sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #lanes { display: flex; flex-direction: column; gap: 6px; max-height: 196px; overflow-y: auto; touch-action: pan-y; }
+  .lane { display: grid; grid-template-columns: 104px 1fr 66px auto 30px; align-items: center; gap: 8px; }
+  .lane .adj {
+    border: 1.5px solid var(--line); background: var(--card); border-radius: 99px; padding: 5px 12px;
+    font-size: 12px; font-weight: 700; color: var(--muted);
+  }
+  .lane.sel .adj { color: var(--ink); border-color: color-mix(in srgb, var(--c) 55%, transparent); }
+  .lane .ln {
+    display: flex; align-items: center; gap: 8px; border: 0; background: transparent; padding: 4px 2px;
+    font-weight: 700; font-size: 14px; text-align: left; opacity: .55; transition: opacity .2s;
+  }
+  .lane .ln i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
+  .lane.sel .ln { opacity: 1; }
+  .lane canvas {
+    width: 100%; height: 32px; border-radius: 10px; background: var(--soft); touch-action: none;
+    border: 1.5px solid transparent; cursor: ew-resize;
+  }
+  .lane.sel canvas { border-color: color-mix(in srgb, var(--c) 55%, transparent); }
+  .lane .lv { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; line-height: 1.3; font-weight: 500; }
+  .lane .x {
+    width: 28px; height: 28px; border-radius: 50%; border: 0; background: var(--soft); color: var(--muted);
+    font-size: 13px; padding: 0;
+  }
+  #noLanes { color: var(--faint); font-size: 13px; padding: 10px 2px; font-weight: 500; }
+
+  /* ---- adjust (tension bars) ---- */
+  /* a drawer: hidden until 「調整」 is tapped on a rhythm lane */
+  #adjust {
+    position: fixed; z-index: 5; width: 300px;
+    top: calc(env(safe-area-inset-top) + 72px); right: calc(env(safe-area-inset-right) + 12px);
+    bottom: calc(env(safe-area-inset-bottom) + 12px);
+    padding: 16px 16px 14px; display: flex; flex-direction: column; gap: 14px; min-height: 0;
+    box-shadow: 0 18px 50px rgba(90,70,45,.18), 0 2px 6px rgba(90,70,45,.08);
+    transform: translateX(calc(100% + 40px)); transition: transform .38s cubic-bezier(.2,.8,.2,1);
+  }
+  #adjust.open { transform: none; }
+  /* the open drawer pushes the stage and rhythm panel aside instead of covering them */
+  #app.drawer #stage, #app.drawer #rhythm { margin-right: 312px; }
+  #selHead { display: flex; align-items: center; gap: 12px; }
+  #adjClose {
+    margin-left: auto; align-self: flex-start; width: 34px; height: 34px; border-radius: 50%; border: 0;
+    background: var(--soft); color: var(--muted); font-size: 14px; padding: 0; flex: none;
+  }
+  #selHead canvas { width: 48px; height: 48px; flex: none; }
+  #selHead .nm { font-size: 22px; font-weight: 700; letter-spacing: .04em; }
+  #barRow { flex: 1; display: flex; justify-content: space-between; gap: 6px; min-height: 0; }
+  .bar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 0; }
+  .bar .end { font-size: 10px; color: var(--faint); white-space: nowrap; font-weight: 700; }
+  .track {
+    position: relative; flex: 1; width: 40px; min-height: 120px; border-radius: 20px;
+    background: var(--soft); box-shadow: inset 0 1px 3px rgba(90,70,45,.10); touch-action: none;
+  }
+  .track .fill {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 0; border-radius: 20px;
+    background: var(--grain-strong, none), var(--c);
+  }
+  .track .knob {
+    position: absolute; left: 50%; width: 30px; height: 30px; border-radius: 50%; background: #fffdf8;
+    transform: translate(-50%, 50%); box-shadow: 0 2px 8px rgba(61,54,46,.25), 0 0 0 3px color-mix(in srgb, var(--c) 45%, transparent);
+  }
+  .bar .lab { font-size: 13px; font-weight: 700; }
+  .bar .val { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; height: 14px; font-weight: 500; }
+  #adjust .sub { margin: 0; }
+
+  /* ---- portrait ---- */
+  @media (orientation: portrait) {
+    #app {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto auto 1fr auto;
+      grid-template-areas: "top" "pal" "stage" "rhy";
+    }
+    #steps li span { display: none; }
+    #palette { padding: 10px; }
+    #palette h2, #palette .sub { display: none; }
+    #words { flex-direction: row; overflow-x: auto; overflow-y: hidden; touch-action: pan-x; margin: 0; }
+    .word { flex: none; width: auto; padding: 5px 12px 5px 6px; }
+    .sec, .gd, .src, .grp .tm { display: none; }
+    .grp { flex: none; align-self: center; margin: 0 0 0 10px; }
+    #adjust {
+      width: auto; left: calc(env(safe-area-inset-left) + 12px); top: auto; height: 340px;
+      transform: translateY(calc(100% + 40px));
+    }
+    #app.drawer #stage, #app.drawer #rhythm { margin-right: 0; }
+    #app.drawer { padding-bottom: calc(env(safe-area-inset-bottom) + 364px); }
+    #selHead canvas { width: 38px; height: 38px; }
+    #lanes { max-height: 150px; }
+  }
+
+  /* ---- sheets ---- */
+  .sheet {
+    position: fixed; inset: 0; background: rgba(61,54,46,.28); display: none; align-items: center; justify-content: center;
+    z-index: 10; padding: 20px; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  .sheet.open { display: flex; }
+  .sheet .box {
+    background: var(--grain), var(--card); border-radius: 28px; padding: 24px; width: 100%; max-width: 520px;
+    display: flex; flex-direction: column; gap: 16px; box-shadow: 0 30px 80px rgba(61,54,46,.25);
+  }
+  .sheet .box.wide { max-width: 640px; }
+  .sheet h3 { margin: 0; font-size: 20px; letter-spacing: .05em; }
+  .sheet .row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+  .sheet a.btn { text-decoration: none; color: inherit; }
+  .sheet a.btn.primary { color: var(--paper); }
+  #nameIn {
+    width: 100%; font: inherit; font-size: 20px; font-weight: 700; color: var(--ink);
+    background: var(--paper); border: 1.5px solid var(--line); border-radius: 16px; padding: 14px 16px; outline: none;
+    -webkit-user-select: text; user-select: text; touch-action: manipulation;
+  }
+  #nameIn:focus { border-color: var(--muted); }
+  #nameIn::placeholder { color: var(--faint); font-weight: 500; }
+  .mix { display: flex; flex-wrap: wrap; gap: 6px; }
+  .mix span {
+    padding: 4px 11px; border-radius: 99px; font-size: 13px; font-weight: 700;
+    background: color-mix(in srgb, var(--c) 16%, transparent); color: color-mix(in srgb, var(--c) 75%, black);
+  }
+  #out { width: 100%; max-height: 56vh; border-radius: 18px; background: var(--paper); }
+  #outName { font-size: 22px; font-weight: 700; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <div class="brand"><span class="orb"></span>痛みのカタチ</div>
+    <ol id="steps">
+      <li data-s="1"><b>1</b><span>ことばを選ぶ</span></li>
+      <li data-s="2"><b>2</b><span>強さとリズムを整える</span></li>
+      <li data-s="3"><b>3</b><span>名前をつけて保存</span></li>
+    </ol>
+    <button class="btn primary" id="saveBtn">名前をつけて保存</button>
+  </header>
+
+  <aside id="palette" class="panel">
+    <h2>痛みのことば</h2>
+    <div class="sub">痛みに近いことばを選んでください。いくつでも重ねられます。</div>
+    <div id="words"></div>
+  </aside>
+
+  <main id="stage" class="panel">
+    <canvas id="cv"></canvas>
+    <div id="hint">
+      <div class="big">あなたの痛みは、どんな感じですか</div>
+      <div class="sub">左のことばから選ぶと、この玉が痛みのカタチに変わって動き出します</div>
+    </div>
+    <div id="toast"></div>
+    <div id="stageTip">玉を指でなぞると回せます　／　玉のまわりをなぞると痛む場所が動きます</div>
+    <button class="btn small" id="resetBtn">正面に戻す</button>
+    <div id="rec"><span class="dot"></span><span id="recT">10.0</span><span class="prog"><i id="recP"></i></span></div>
+  </main>
+
+  <section id="rhythm" class="panel">
+    <div class="head">
+      <h2>リズム</h2>
+      <span class="sub">波を左右に動かすとタイミングをずらせます。「調整」で強さや鋭さを変えられます</span>
+      <span class="sp"></span>
+      <button class="btn small" id="syncBtn">間隔をそろえる</button>
+      <button class="btn small ghost" id="clearBtn">ぜんぶ消す</button>
+    </div>
+    <div id="lanes"></div>
+  </section>
+
+  <aside id="adjust" class="panel">
+    <div id="selHead">
+      <canvas id="selIcon" width="96" height="96"></canvas>
+      <div><div class="nm" id="selName">—</div><div class="sub" id="selDesc">ことばを選ぶと調整できます</div></div>
+      <button id="adjClose" aria-label="とじる">✕</button>
+    </div>
+    <div class="sub" id="selMeta"></div>
+    <div id="barRow"></div>
+    <p class="sub">バーや玉のまわりを触っている間は、その痛みの波だけが映ります。玉のまわりをなぞると、痛む<b>場所</b>が動きます。玉そのものをなぞると回せます。</p>
+  </aside>
+</div>
+
+<div class="sheet" id="nameSheet">
+  <div class="box">
+    <h3>この痛みに名前をつける</h3>
+    <div class="mix" id="nameMix"></div>
+    <input id="nameIn" type="text" maxlength="30" placeholder="例：雨の前のこめかみ" autocomplete="off" enterkeyhint="go">
+    <div class="sub">名前は動画の中とファイル名に入ります。ボタンを押すと、10秒の録画がはじまります。</div>
+    <div class="row">
+      <button class="btn ghost" id="nameCancel">もどる</button>
+      <button class="btn primary" id="nameGo">10秒の録画をはじめる</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="resultSheet">
+  <div class="box wide">
+    <div id="outName"></div>
+    <video id="out" playsinline muted loop autoplay></video>
+    <div class="sub" id="outNote"></div>
+    <div class="row">
+      <button class="btn ghost" id="closeBtn">閉じる</button>
+      <a class="btn" id="dlBtn" download>ファイルに保存</a>
+      <button class="btn primary" id="shareBtn">共有・写真に保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- onomatopoeia ----------
+  // Words: the 40 onomatopoeia among the 98 pain expressions of 楠見・中本・子安 (2010), grouped by its 11 clusters,
+  // plus 「がーん」 from 土斐崎ら (2014). Descriptions are the papers' cluster descriptions, not per-word ratings.
+  // No study fixes a shape or period per word, so each word starts from its cluster's traits
+  // (strength, sharpness, time pattern, range) and the patient adjusts it.
+  // wave: shape = spatial pattern around the ring, env = temporal envelope, rot = rotation (turns per period)
+  const CLUSTERS = {
+    C: { label: '破壊刺激反復', desc: '強い痛み。体を壊すような刺激の繰り返し', time: '反復', parts: '胸・腹、頭、歯', c: '#c8473f',
+         wave: { shape: 'sine', env: 'throb', k: 5, period: 0.8, sharp: 0.55, amp: 0.85, rot: 0 } },
+    D: { label: '電気・氷', desc: 'あまり強くないが鋭い', time: '瞬間的', parts: '頭・歯', c: '#4a9fc4',
+         wave: { shape: 'spike', env: 'burst', k: 12, period: 1.6, sharp: 0.85, amp: 0.55, rot: 0 } },
+    E: { label: '針', desc: '針による小さな痛み。あまり強くないが鋭い', time: '', parts: '手腕・足脚・関節・皮膚', c: '#d6a52a',
+         wave: { shape: 'spike', env: 'burst', k: 16, period: 1.2, sharp: 0.9, amp: 0.45, rot: 0, spread: 0.35 } },
+    F: { label: '燃焼', desc: '熱や圧迫感を伴う、あまり強くない痛み', time: '持続する', parts: '胸・腹・のど', c: '#e07a38',
+         wave: { shape: 'noise', env: 'steady', k: 6, period: 2.0, sharp: 0.15, amp: 0.45, rot: 0.08 } },
+    G: { label: 'こわばり・凝り', desc: '圧迫感を伴う、あまり強くない痛み', time: '持続する', parts: '頭・肩・腰', c: '#45589c',
+         wave: { shape: 'radial', env: 'steady', k: 1, period: 3.0, sharp: 0.2, amp: 0.55, rot: 0, inward: true } },
+    H: { label: '異物', desc: '広い範囲の弱い痛み。体の中の異物', time: '断続的に続く', parts: '胸・腹', c: '#9a684b',
+         wave: { shape: 'noise', env: 'throb', k: 4, period: 1.8, sharp: 0.2, amp: 0.38, rot: 0.05 } },
+    I: { label: '電気刺激反復', desc: 'やや狭い範囲の弱いしびれ', time: '断続的に続く', parts: '手腕・足脚・関節・皮膚', c: '#7860ad',
+         wave: { shape: 'tri', env: 'flicker', k: 28, period: 0.35, sharp: 0.45, amp: 0.38, rot: 0.4, spread: 0.55 } },
+    J: { label: '摩擦', desc: '体の表面の、堅く緊迫感のある痛み', time: '断続的', parts: '手腕・足脚・関節・皮膚', c: '#74a447',
+         wave: { shape: 'saw', env: 'flicker', k: 34, period: 0.5, sharp: 0.65, amp: 0.4, rot: 0.15 } },
+    K: { label: '表面緊張', desc: '鈍いしびれやうずき。広がるような痛み', time: '', parts: '手腕・足脚・関節・皮膚', c: '#ad4d8b',
+         wave: { shape: 'noise', env: 'swell', k: 10, period: 2.6, sharp: 0.1, amp: 0.36, rot: 0.1 } },
+    X: { label: 'そのほか', desc: '医師が「ハンマーで殴られたような痛みか」と聞き返した例がある（土斐崎ら 2014）', time: '', parts: '', c: '#6b625a',
+         wave: { shape: 'sine', env: 'burst', k: 2, period: 2.0, sharp: 0.3, amp: 0.95, rot: 0 } },
+  };
+  // [cluster, expression, result reported for that word, wave overrides backed by that result]
+  const WORDS = [
+    ['C', 'がんがんする', '頭で最も選ばれた（98%）。経験頻度が最も高い'],
+    ['C', 'ずきんずきんする', '断続的。体の内部・頭部側に対応'],
+    ['C', 'ずきずきする'],
+    ['C', 'ずきんとする'],
+    ['C', 'きりきりする', '胃で最も選ばれた（63%）'],
+    ['C', 'ぎんぎんする'],
+    ['D', 'きーんとする', '耳で最も選ばれた（26%）。鋭く堅いイメージ'],
+    ['D', 'きんきんする'],
+    ['D', 'ひやりとする', '氷の比喩'],
+    ['E', 'ちくっとする', '弱い痛みのイメージ。「針が刺さるような」「つねるような」に対応し、狭く短い（土斐崎ら 2014）', { spread: 0.2 }],
+    ['E', 'ちくりとする', '経験頻度が上位4番目'],
+    ['E', 'びりっとする'],
+    ['E', 'びくっとする'],
+    ['E', 'つんとする', '「その他」の部位を選んだ人は全員「鼻」と記入'],
+    ['E', 'ちかちかする', '目で最も選ばれた（91%）。弱い痛みのイメージ'],
+    ['F', 'きゅーんとする'],
+    ['F', 'じーんとする'],
+    ['G', 'かーっとする'],
+    ['G', 'ずーんとする'],
+    ['H', 'じんじんする'],
+    ['H', 'ぐりぐりする'],
+    ['H', 'じわーとする', '熱く重いイメージ'],
+    ['H', 'じわっとする'],
+    ['H', 'もやもやする', '熱く重いイメージ'],
+    ['H', 'うずうずする'],
+    ['H', 'ぐいぐいする'],
+    ['H', 'しくしくする'],
+    ['I', 'びりびりする'],
+    ['I', 'ぴりぴりする'],
+    ['I', 'ちりちりする'],
+    ['I', 'むずむずする', '皮膚表面の広い範囲の痛み。弱い痛みのイメージ', { spread: 1 }],
+    ['J', 'ちくちくする', '断続的'],
+    ['J', 'ひりひりする', '皮膚（体の表面）で最も選ばれた（70%）'],
+    ['J', 'じんとする', '経験頻度が上位3番目'],
+    ['J', 'ごりごりする'],
+    ['J', 'つんつんする'],
+    ['K', 'びーんとする'],
+    ['K', 'ぎしぎしする'],
+    ['K', 'きゅっとする'],
+    ['K', 'じくじくする'],
+    ['X', 'がーん'],
+  ];
+  const shade = (hex, k) => {
+    const n = parseInt(hex.slice(1), 16);
+    return '#' + [n >> 16 & 255, n >> 8 & 255, n & 255]
+      .map(v => Math.round(k > 0 ? v + (255 - v) * k : v * (1 + k)).toString(16).padStart(2, '0')).join('');
+  };
+  // words of one cluster share its wave and get slightly different shades of its colour
+  const TYPES = WORDS.map(([cl, name, note, over]) => {
+    const same = WORDS.filter(w => w[0] === cl), j = same.findIndex(w => w[1] === name);
+    const k = same.length > 1 ? (0.5 - j / (same.length - 1)) * 0.36 : 0;
+    return { name, short: name.replace(/(とする|する)$/, ''), cl, note: note || '',
+      c: shade(CLUSTERS[cl].c, k), ...CLUSTERS[cl].wave, ...(over || {}) };
+  });
+  const typeOf = name => TYPES.find(t => t.name === name);
+
+  // ---------- tension bars ----------
+  const BARS = [
+    { key: 'amp',    label: '強さ',   top: 'つよい',   bot: 'よわい',   min: 0,    max: 1,   fmt: v => Math.round(v * 100) },
+    { key: 'period', label: '間隔',   top: 'ながい',   bot: 'みじかい', min: 0.12, max: 3.5, log: true, fmt: v => v.toFixed(2) + '秒' },
+    { key: 'k',      label: '細かさ', top: 'こまかい', bot: 'あらい',   min: 1,    max: 48,  int: true, fmt: v => v },
+    { key: 'sharp',  label: '鋭さ',   top: 'するどい', bot: 'にぶい',   min: 0,    max: 1,   fmt: v => Math.round(v * 100) },
+    { key: 'spread', label: '広がり', top: 'ぜんたい', bot: '一点',     min: 0.05, max: 1,   fmt: v => v >= 0.99 ? '全体' : Math.round(v * 100) },
+  ];
+  const toNorm = (b, v) => b.log ? Math.log(v / b.min) / Math.log(b.max / b.min) : (v - b.min) / (b.max - b.min);
+  const fromNorm = (b, n) => {
+    const v = b.log ? b.min * Math.pow(b.max / b.min, n) : b.min + n * (b.max - b.min);
+    return b.int ? Math.round(v) : v;
+  };
+
+  // ---------- state ----------
+  const MAX_LAYERS = 6;
+  let layers = [];
+  let selId = null;
+  let nextId = 1;
+  let recording = false;
+  let recName = '';
+  let step3 = false;
+
+  // while a layer is being adjusted (bar or focus drag), only that layer is shown
+  let adjusting = 0, lastAdjust = -1;
+  const endAdjust = () => { adjusting = Math.max(0, adjusting - 1); lastAdjust = performance.now() / 1000; };
+
+  const $ = s => document.querySelector(s);
+  const cv = $('#cv'), ctx = cv.getContext('2d');
+  const selLayer = () => layers.find(l => l.id === selId);
+
+  // ---------- paper grain & crayon textures ----------
+  function grainCanvas(size, alpha, dark) {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const g = c.getContext('2d'), img = g.createImageData(size, size);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = dark ? 60 : 255;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+      img.data[i + 3] = Math.random() < 0.5 ? Math.random() * alpha : 0;
+    }
+    g.putImageData(img, 0, 0);
+    return c;
+  }
+  document.documentElement.style.setProperty('--grain', `url(${grainCanvas(160, 14, true).toDataURL()})`);
+  document.documentElement.style.setProperty('--grain-strong', `url(${grainCanvas(96, 90, false).toDataURL()})`);
+
+  // a waxy, grainy fill like a coloured pencil / crayon stroke on paper
+  const crayonSrc = new Map();
+  function crayonCanvas(color) {
+    if (crayonSrc.has(color)) return crayonSrc.get(color);
+    const s = 96, c = document.createElement('canvas'); c.width = c.height = s;
+    const g = c.getContext('2d');
+    g.fillStyle = color; g.fillRect(0, 0, s, s);
+    const img = g.getImageData(0, 0, s, s), d = img.data;
+    for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+      const i = (y * s + x) * 4;
+      // diagonal streaks + speckle holes where the paper shows through
+      const streak = 0.5 + 0.5 * Math.sin((x + y * 0.35) * 0.9 + Math.sin(y * 0.3) * 2);
+      const keep = Math.random() < 0.18 + 0.25 * streak ? 0.25 + Math.random() * 0.3 : 0.8 + Math.random() * 0.2;
+      d[i + 3] = 255 * keep;
+    }
+    g.putImageData(img, 0, 0);
+    crayonSrc.set(color, c);
+    return c;
+  }
+  const patCache = new WeakMap();
+  function crayon(g, color) {
+    let m = patCache.get(g); if (!m) { m = new Map(); patCache.set(g, m); }
+    if (!m.has(color)) m.set(color, g.createPattern(crayonCanvas(color), 'repeat'));
+    return m.get(color);
+  }
+  // stroke a path twice with slight offsets so it reads as hand-drawn crayon
+  function crayonStroke(g, path, color, width, alpha) {
+    g.save();
+    g.strokeStyle = crayon(g, color); g.lineCap = 'round'; g.lineJoin = 'round';
+    g.globalAlpha = alpha; g.lineWidth = width;
+    g.stroke(path);
+    g.globalAlpha = alpha * 0.55; g.lineWidth = width * 0.6;
+    g.translate(0.8, -0.6); g.stroke(path);
+    g.restore();
+  }
+
+  // ---------- wave math ----------
+  const TAU = Math.PI * 2;
+  const fract = x => x - Math.floor(x);
+  const hash = n => fract(Math.sin(n * 127.1 + 311.7) * 43758.5453);
+  const ease = x => x * x * (3 - 2 * x);
+
+  // temporal envelope in 0..1; phase is the user's shift as a fraction of the period
+  function envelope(kind, t, T, phase, seed) {
+    const u = t / T - phase, x = fract(u);
+    switch (kind) {
+      case 'throb':   return Math.pow(0.5 + 0.5 * Math.cos(TAU * x), 2);
+      case 'beat':    return Math.exp(-x * 14) + (x > 0.28 ? 0.65 * Math.exp(-(x - 0.28) * 14) : 0);
+      case 'burst':   return Math.exp(-x * 7);
+      case 'swell':   return 0.5 - 0.5 * Math.cos(TAU * x);
+      case 'squeeze': return x < 0.6 ? ease(x / 0.6) : 1 - ease((x - 0.6) / 0.4);
+      case 'flicker': {
+        const s = u * 3, i = Math.floor(s), f = s - i;
+        const a = hash(i + seed), b = hash(i + 1 + seed);
+        return 0.15 + 0.85 * Math.pow(a + (b - a) * ease(f), 2);
+      }
+      default:        return 0.75 + 0.25 * Math.sin(TAU * x);
+    }
+  }
+
+  // spatial pattern; returns roughly -0.3..1 (positive = outward)
+  function spatial(L, type, th, t) {
+    const k = Math.max(1, Math.round(L.k));
+    const flick = type.env === 'flicker' ? hash(Math.floor((t / L.period - L.phase) * 3) + L.seed * 7) * TAU : 0;
+    const p = TAU * (type.rot || 0) * t / L.period + L.seed + flick;
+    const pw = 1 + L.sharp * 7;
+    switch (type.shape) {
+      case 'radial': return 1;
+      case 'spike':  return Math.pow(0.5 + 0.5 * Math.sin(k * th + p), 4 + L.sharp * 40) * 1.2;
+      case 'tri': {
+        const v = Math.asin(Math.sin(k * th + p)) / (Math.PI / 2);
+        return Math.sign(v) * Math.pow(Math.abs(v), 1 / (1 + L.sharp)) * 0.8;
+      }
+      case 'saw':    return Math.pow(fract((k * th + p) / TAU), pw) * 1.2 - 0.15;
+      case 'noise': {
+        const k2 = Math.max(1, Math.round(k * 1.7)), k3 = Math.max(1, Math.round(k * 2.9));
+        const w = TAU / L.period * 0.15;
+        const v = (Math.sin(k * th + p + t * w) + 0.6 * Math.sin(k2 * th - t * w * 1.3 + L.seed)
+                 + 0.4 * Math.sin(k3 * th + t * w * 0.7 + L.seed * 2)) / 2;
+        const u = Math.min(1, Math.max(0, 0.5 + 0.5 * v));
+        return Math.pow(u, pw) * 1.3 - 0.2;
+      }
+      default:       return Math.pow(0.5 + 0.5 * Math.sin(k * th + p), pw) * 1.3 - 0.25;
+    }
+  }
+
+  function angDist(a, b) { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; }
+  const defaults = t => ({ amp: t.amp, period: t.period, k: t.k, sharp: t.sharp, spread: t.spread ?? 1, phase: 0, seed: 3, focus: -Math.PI / 2 });
+
+  // small static crayon ring glyph of a word's shape
+  function drawGlyph(c, L, type, color) {
+    const g = c.getContext('2d'), s = c.width, r = s * 0.3;
+    g.clearRect(0, 0, s, s);
+    const p = new Path2D();
+    for (let i = 0; i <= 180; i++) {
+      const th = i / 180 * TAU;
+      let w = 1;
+      if (L.spread < 0.99) { const d = angDist(th, L.focus); const sg = 0.12 + L.spread * 2.4; w = Math.exp(-d * d / (2 * sg * sg)); }
+      const v = type.shape === 'radial' ? -0.5 : spatial(L, type, th, 0.25) * Math.min(1, L.amp + 0.3) * w;
+      const rr = r * (1 + 0.32 * v);
+      const x = s / 2 + rr * Math.cos(th), y = s / 2 + rr * Math.sin(th);
+      i ? p.lineTo(x, y) : p.moveTo(x, y);
+    }
+    p.closePath();
+    crayonStroke(g, p, color, s / 14, 1);
+  }
+
+  // ---------- palette ----------
+  const wordsEl = $('#words');
+  const SECTIONS = [
+    { title: '強い痛み', keys: ['C'] },
+    { title: '比較的弱い痛み', keys: ['D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'] },
+    { title: '楠見らの一覧にないことば', keys: ['X'] },
+  ];
+  SECTIONS.forEach(S => {
+    const h = document.createElement('div');
+    h.className = 'sec'; h.textContent = S.title;
+    wordsEl.appendChild(h);
+    S.keys.forEach(key => {
+      const C = CLUSTERS[key];
+      const g = document.createElement('div');
+      g.className = 'grp'; g.style.setProperty('--c', C.c);
+      g.innerHTML = `<div class="gh">${key === 'X' ? '' : `<b>${key}</b>`}${C.label}${C.time ? `<span class="tm">${C.time}</span>` : ''}</div>
+        <div class="gd">${C.desc}</div>`;
+      wordsEl.appendChild(g);
+      TYPES.filter(t => t.cl === key).forEach(t => {
+        const b = document.createElement('button');
+        b.className = 'word'; b.style.setProperty('--c', t.c); b.dataset.name = t.name;
+        b.innerHTML = `<canvas width="72" height="72"></canvas><span class="n">${t.name}</span><span class="cnt"></span>`;
+        drawGlyph(b.querySelector('canvas'), defaults(t), t, t.c);
+        b.addEventListener('click', () => addLayer(t.name));
+        wordsEl.appendChild(b);
+      });
+    });
+  });
+  const src = document.createElement('div');
+  src.className = 'src';
+  src.innerHTML = 'ことばとグループの説明：楠見・中本・子安（2010）「痛みの比喩表現の身体感覚と認知の構造」『心理学研究』80(6)、土斐崎ら（2014）。<br>波の形は研究で決まったものではなく、グループの特徴（強さ・鋭さ・時間のパターン）から作った出発点です。';
+  wordsEl.appendChild(src);
+
+  function addLayer(name) {
+    if (layers.length >= MAX_LAYERS) { toast(`重ねられるのは${MAX_LAYERS}つまでです`); return; }
+    const t = typeOf(name);
+    const L = { id: nextId++, name, short: t.short, c: t.c, ...defaults(t), seed: Math.random() * 100, born: performance.now() / 1000 };
+    layers.push(L);
+    selId = L.id;
+    renderUI();
+  }
+  function removeLayer(id) {
+    layers = layers.filter(l => l.id !== id);
+    if (selId === id) selId = layers.length ? layers[layers.length - 1].id : null;
+    renderUI();
+  }
+
+  let toastTimer;
+  function toast(msg) {
+    const el = $('#toast'); el.textContent = msg; el.style.opacity = 1;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.style.opacity = 0, 1800);
+  }
+
+  // ---------- rhythm lanes ----------
+  const LANE_SPAN = 4;   // seconds visible in a lane
+  const laneEls = new Map();
+  function renderLanes() {
+    const box = $('#lanes');
+    box.innerHTML = '';
+    laneEls.clear();
+    if (!layers.length) { box.innerHTML = '<div id="noLanes">ことばを選ぶと、ここにそれぞれの痛みのリズムが並びます</div>'; return; }
+    layers.forEach(L => {
+      const row = document.createElement('div');
+      row.className = 'lane' + (L.id === selId ? ' sel' : '');
+      row.style.setProperty('--c', L.c);
+      row.innerHTML = `<button class="ln"><i></i>${L.short}</button><canvas></canvas><span class="lv"></span><button class="adj">調整</button><button class="x" aria-label="削除">✕</button>`;
+      row.querySelector('.ln').addEventListener('click', () => { selId = L.id; renderSelection(); });
+      row.querySelector('.adj').addEventListener('click', () => { selId = L.id; renderSelection(); setDrawer(true); });
+      row.querySelector('.x').addEventListener('click', () => removeLayer(L.id));
+      const c = row.querySelector('canvas');
+      let drag = null;
+      c.addEventListener('pointerdown', e => {
+        c.setPointerCapture(e.pointerId);
+        drag = { x: e.clientX, phase: L.phase };
+        if (selId !== L.id) { selId = L.id; renderSelection(); }
+      });
+      c.addEventListener('pointermove', e => {
+        if (!drag) return;
+        const pxPerSec = c.clientWidth / LANE_SPAN;
+        L.phase = fract(drag.phase + (e.clientX - drag.x) / pxPerSec / L.period);
+      });
+      const end = () => { drag = null; };
+      c.addEventListener('pointerup', end);
+      c.addEventListener('pointercancel', end);
+      box.appendChild(row);
+      laneEls.set(L.id, { row, c, lv: row.querySelector('.lv') });
+    });
+  }
+
+  function drawLanes(t) {
+    const DPRl = Math.min(2, window.devicePixelRatio || 1);
+    const sel = selLayer();
+    layers.forEach(L => {
+      const E = laneEls.get(L.id); if (!E) return;
+      const c = E.c, w = c.clientWidth, h = c.clientHeight;
+      if (!w) return;
+      if (c.width !== Math.round(w * DPRl)) { c.width = Math.round(w * DPRl); c.height = Math.round(h * DPRl); }
+      const g = c.getContext('2d');
+      g.setTransform(DPRl, 0, 0, DPRl, 0, 0);
+      g.clearRect(0, 0, w, h);
+      const type = typeOf(L.name);
+      const t0l = t - LANE_SPAN * 0.25;
+      // beat grid of the selected layer, so others can be lined up against it
+      if (sel) {
+        g.strokeStyle = 'rgba(90,70,45,0.13)'; g.lineWidth = 1;
+        const first = Math.ceil(t0l / sel.period - sel.phase);
+        for (let n = first; (n + sel.phase) * sel.period < t0l + LANE_SPAN; n++) {
+          const x = ((n + sel.phase) * sel.period - t0l) / LANE_SPAN * w;
+          g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke();
+        }
+      }
+      const pts = 140, area = new Path2D(), line = new Path2D();
+      area.moveTo(0, h);
+      for (let i = 0; i <= pts; i++) {
+        const tt = t0l + i / pts * LANE_SPAN;
+        const e = Math.min(1, envelope(type.env, tt, L.period, L.phase, L.seed));
+        const x = i / pts * w, y = h - 3 - e * L.amp * (h - 6);
+        area.lineTo(x, y); i ? line.lineTo(x, y) : line.moveTo(x, y);
+      }
+      area.lineTo(w, h); area.closePath();
+      const on = L.id === selId;
+      g.globalAlpha = on ? 0.55 : 0.3; g.fillStyle = crayon(g, L.c); g.fill(area);
+      g.globalAlpha = 1;
+      crayonStroke(g, line, L.c, on ? 2.4 : 1.8, on ? 1 : 0.6);
+      // playhead (now)
+      g.fillStyle = 'rgba(61,54,46,0.7)';
+      g.fillRect(w * 0.25 - 0.75, 0, 1.5, h);
+      E.lv.innerHTML = `${L.period.toFixed(2)}秒<br>ずれ ${(L.phase * L.period).toFixed(2)}`;
+    });
+  }
+
+  $('#syncBtn').addEventListener('click', () => {
+    const S = selLayer(); if (!S || layers.length < 2) return;
+    layers.forEach(L => { L.period = S.period; L.phase = S.phase; });
+    renderBars();
+    toast(`すべての間隔を「${S.short}」（${S.period.toFixed(2)}秒）にそろえました`);
+  });
+  $('#clearBtn').addEventListener('click', () => { layers = []; selId = null; renderUI(); });
+
+  // ---------- bars ----------
+  const barRow = $('#barRow');
+  const barEls = {};
+  BARS.forEach(b => {
+    const el = document.createElement('div');
+    el.className = 'bar';
+    el.innerHTML = `<span class="end">${b.top}</span>
+      <div class="track"><div class="fill"></div><div class="knob"></div></div>
+      <span class="end">${b.bot}</span><span class="lab">${b.label}</span><span class="val"></span>`;
+    barRow.appendChild(el);
+    const track = el.querySelector('.track');
+    barEls[b.key] = { el, fill: el.querySelector('.fill'), knob: el.querySelector('.knob'), val: el.querySelector('.val') };
+
+    const set = e => {
+      const L = selLayer(); if (!L) return;
+      const r = track.getBoundingClientRect();
+      const n = Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height));
+      L[b.key] = fromNorm(b, n);
+      renderBars();
+    };
+    track.addEventListener('pointerdown', e => { track.setPointerCapture(e.pointerId); adjusting++; set(e); });
+    track.addEventListener('pointermove', e => { if (track.hasPointerCapture(e.pointerId)) set(e); });
+    const release = e => { if (track.hasPointerCapture(e.pointerId)) track.releasePointerCapture(e.pointerId); };
+    track.addEventListener('pointerup', release);
+    track.addEventListener('pointercancel', release);
+    track.addEventListener('lostpointercapture', endAdjust);
+  });
+
+  let drawerOpen = false;
+  function setDrawer(v) {
+    drawerOpen = v && !!selLayer();
+    $('#adjust').classList.toggle('open', drawerOpen);
+    $('#app').classList.toggle('drawer', drawerOpen);
+  }
+  $('#adjClose').addEventListener('click', () => setDrawer(false));
+
+  function renderBars() {
+    const L = selLayer();
+    if (!L && drawerOpen) setDrawer(false);
+    $('#selName').textContent = L ? L.name : '—';
+    const T = L && typeOf(L.name), C = T && CLUSTERS[T.cl];
+    $('#selDesc').textContent = L ? (T.cl === 'X' ? '' : T.cl + ' ') + C.label + '｜' + C.desc : 'ことばを選ぶと調整できます';
+    $('#selMeta').innerHTML = L ? [C.time && '時間のパターン：' + C.time, C.parts && '使われやすい部位：' + C.parts, T.note]
+      .filter(Boolean).join('<br>') : '';
+    const icon = $('#selIcon');
+    if (L) drawGlyph(icon, L, typeOf(L.name), L.c); else icon.getContext('2d').clearRect(0, 0, icon.width, icon.height);
+    BARS.forEach(b => {
+      const E = barEls[b.key];
+      E.el.style.setProperty('--c', L ? L.c : '#c9bfb1');
+      const n = L ? toNorm(b, L[b.key]) : 0;
+      E.fill.style.height = `calc(${n * 100}% * 0.86 + 14%)`;
+      E.knob.style.bottom = `calc(${n * 100}% * 0.86 + 7%)`;
+      E.val.textContent = L ? b.fmt(L[b.key]) : '';
+    });
+  }
+
+  // ---------- UI refresh ----------
+  function renderSelection() {
+    laneEls.forEach((E, id) => E.row.classList.toggle('sel', id === selId));
+    renderBars();
+  }
+  function renderUI() {
+    renderLanes();
+    document.querySelectorAll('.word').forEach(w => {
+      const n = layers.filter(l => l.name === w.dataset.name).length;
+      w.classList.toggle('used', n > 0);
+      w.querySelector('.cnt').textContent = n > 1 ? '×' + n : n ? '●' : '';
+    });
+    $('#hint').style.opacity = layers.length ? 0 : 1;
+    $('#saveBtn').disabled = !layers.length || recording;
+    $('#clearBtn').disabled = !layers.length || recording;
+    $('#syncBtn').disabled = layers.length < 2;
+    const s = step3 || recording ? 3 : layers.length ? 2 : 1;
+    document.querySelectorAll('#steps li').forEach(li => {
+      const n = +li.dataset.s;
+      li.classList.toggle('now', n === s);
+      li.classList.toggle('done', n < s);
+    });
+    renderSelection();
+  }
+
+  // ---------- 3D translucent ball (three.js); falls back to a 2D ball if WebGL/three is unavailable ----------
+  let three = null;
+  function init3D() {
+    if (!window.THREE) return;
+    try {
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setClearColor(0x000000, 0);
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x9a917f, 0.45));
+      const key = new THREE.DirectionalLight(0xfff6ec, 0.9); key.position.set(-1.2, 1.4, 2); scene.add(key);
+      const fill = new THREE.DirectionalLight(0xeef2ff, 0.2); fill.position.set(1.5, -0.6, 1); scene.add(fill);
+      const rim = new THREE.DirectionalLight(0xffffff, 0.5); rim.position.set(0.4, 0.6, -2); scene.add(rim);
+      const geo = new THREE.SphereGeometry(1, 112, 84);
+      // grey glass-like ball, about 70% opaque: darker at the rim (fresnel),
+      // with contour lines of the pain displacement and faint latitude lines for volume
+      const dsp = new Float32Array(geo.attributes.position.count);
+      const dspAttr = new THREE.BufferAttribute(dsp, 1);
+      geo.setAttribute('aDisp', dspAttr);
+      const glass = back => new THREE.ShaderMaterial({
+        uniforms: { uBack: { value: back ? 1 : 0 } },
+        transparent: true, depthWrite: false, side: back ? THREE.BackSide : THREE.FrontSide,
+        vertexShader: `
+          attribute float aDisp;
+          varying float vDisp; varying vec3 vN; varying vec3 vV; varying vec3 vDir;
+          void main() {
+            vDisp = aDisp; vDir = normalize(position);
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz);
+            gl_Position = projectionMatrix * mv;
+          }`,
+        fragmentShader: `
+          uniform float uBack;
+          varying float vDisp; varying vec3 vN; varying vec3 vV; varying vec3 vDir;
+          void main() {
+            vec3 N = normalize(vN); if (uBack > 0.5) N = -N;
+            vec3 V = normalize(vV);
+            float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 1.7);
+            vec3 L = normalize(vec3(-0.6, 0.7, 0.8));
+            float dif = max(dot(N, L), 0.0);
+            float spec = pow(max(dot(reflect(-L, N), V), 0.0), 48.0);
+            float f = fract(vDisp * 3.0 + 0.5);
+            float contour = 1.0 - smoothstep(0.0, 0.05, min(f, 1.0 - f));
+            float g = fract(asin(clamp(vDir.y, -1.0, 1.0)) / 3.14159 * 12.0);
+            float lat = 1.0 - smoothstep(0.0, 0.05, min(g, 1.0 - g));
+            vec3 ink = vec3(0.22, 0.24, 0.29), body = vec3(0.55, 0.58, 0.65);
+            vec3 col = mix(body, ink, fres * 0.8) + vec3(0.18) * dif * (1.0 - fres);
+            col = mix(col, ink, contour * 0.5);
+            col = mix(col, ink, lat * 0.12);
+            col = mix(col, vec3(1.0), spec);
+            // about 70% opaque in the middle, denser at the rim
+            float a = 0.66 + 0.28 * fres + 0.6 * spec + 0.15 * contour;
+            if (uBack > 0.5) a *= 0.3;
+            gl_FragColor = vec4(col, clamp(a, 0.0, 0.96));
+          }`,
+      });
+      const back = new THREE.Mesh(geo, glass(true));
+      const front = new THREE.Mesh(geo, glass(false));
+      back.renderOrder = 0; front.renderOrder = 1;
+      scene.add(back, front);
+      // per-vertex angles around the three axes (screen convention: angle 0 = right, y down)
+      const pos = geo.attributes.position, n = pos.count;
+      const base = new Float32Array(pos.array);
+      const a1 = new Float32Array(n), a2 = new Float32Array(n), a3 = new Float32Array(n);
+      const w1 = new Float32Array(n), w2 = new Float32Array(n), w3 = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const x = base[i * 3], y = base[i * 3 + 1], z = base[i * 3 + 2];
+        a1[i] = Math.atan2(-y, x); a2[i] = Math.atan2(z, x); a3[i] = Math.atan2(z, -y);
+        const q1 = Math.hypot(x, y) * 3, q2 = Math.hypot(x, z), q3 = Math.hypot(y, z), s = q1 + q2 + q3 || 1;
+        w1[i] = q1 / s; w2[i] = q2 / s; w3[i] = q3 / s;
+      }
+      three = { renderer, scene, camera, geo, pos, dsp, dspAttr, base, a1, a2, a3, w1, w2, w3, n, w: 0, h: 0,
+        meshes: [back, front], q: new THREE.Quaternion() };
+    } catch (err) {
+      console.warn('3D unavailable, using 2D ball', err);
+      three = null;
+    }
+  }
+  init3D();
+
+  // ball orientation: three.q turns the ball's own space into view space.
+  // The pain field lives in the ball's space, so it turns with the ball.
+  const spin = { x: 0, y: 0 };   // angular velocity left after a flick (rad/s around view x / y)
+  let resetting = false;
+  const viewDir = th => { const l = Math.hypot(1, 0.7); return [Math.cos(th) / l, -Math.sin(th) / l, 0.7 / l]; };
+  function toObject(v) {
+    if (!three) return v;
+    const w = new THREE.Vector3(v[0], v[1], v[2]).applyQuaternion(three.q.clone().invert());
+    return [w.x, w.y, w.z];
+  }
+  function toView(v) {
+    if (!three) return v;
+    const w = new THREE.Vector3(v[0], v[1], v[2]).applyQuaternion(three.q);
+    return [w.x, w.y, w.z];
+  }
+  function rotateBall(ax, ay, ang) {   // axis given in view space
+    if (!three || !(ang > 0)) return;
+    three.q.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(ax, ay, 0).normalize(), ang));
+  }
+
+  function render3D(t, cur, R) {
+    const T = three;
+    T.meshes.forEach(m => m.quaternion.copy(T.q));
+    if (T.w !== W || T.h !== H) {
+      T.renderer.setPixelRatio(DPR); T.renderer.setSize(W, H, false);
+      T.w = W; T.h = H;
+    }
+    T.camera.aspect = W / H;
+    T.camera.position.z = H / (2 * R * Math.tan(15 * Math.PI / 180));
+    T.camera.updateProjectionMatrix();
+    const P = T.pos.array, B = T.base;
+    for (let i = 0; i < T.n; i++) {
+      const x = B[i * 3], y = B[i * 3 + 1], z = B[i * 3 + 2];
+      let D = 0;
+      for (let j = 0; j < cur.length; j++) {
+        const c = cur[j];
+        let wf = 1;
+        if (c.L.spread < 0.99) {
+          const dot = Math.max(-1, Math.min(1, x * c.fx + y * c.fy + z * c.fz));
+          const ang = Math.acos(dot);
+          wf = Math.exp(-ang * ang / (2 * c.sigma * c.sigma));
+        }
+        if (wf < 0.002) continue;
+        const s = c.type.shape === 'radial' ? 1 :
+          spatial(c.L, c.type, T.a1[i], t) * T.w1[i] + spatial(c.L, c.type, T.a2[i], t) * T.w2[i]
+          + spatial(c.L, c.type, T.a3[i], t) * T.w3[i];
+        D += s * c.amp * wf;
+      }
+      // finger ripples spread over the surface from where the finger touched
+      for (const Tc of touches) {
+        const age = cur.now - Tc.t0, k = Tc.s * 0.35 * Math.exp(-age * 2.5);
+        const d = Math.acos(Math.max(-1, Math.min(1, x * Tc.v[0] + y * Tc.v[1] + z * Tc.v[2])));
+        D += k * Math.exp(-d * d / 0.06) * Math.cos(age * 18 - d * 12);
+      }
+      const r = Math.max(0.25, 1 + 0.2 * D);
+      P[i * 3] = x * r; P[i * 3 + 1] = y * r; P[i * 3 + 2] = z * r;
+      T.dsp[i] = D;
+    }
+    T.pos.needsUpdate = true;
+    T.dspAttr.needsUpdate = true;
+    T.geo.computeVertexNormals();
+    T.renderer.render(T.scene, T.camera);
+  }
+
+  // ---------- canvas sizing ----------
+  let W = 0, H = 0, DPR = 1;
+  const bgCv = document.createElement('canvas'), bgCtx = bgCv.getContext('2d');
+  function resize() {
+    if (recording) return;
+    const r = cv.getBoundingClientRect();
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = r.width; H = r.height;
+    cv.width = bgCv.width = Math.round(W * DPR); cv.height = bgCv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // static backdrop: warm paper with grain
+    bgCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const v = bgCtx.createRadialGradient(W / 2, H * 0.45, 0, W / 2, H / 2, Math.max(W, H) * 0.75);
+    v.addColorStop(0, '#fffdf8'); v.addColorStop(1, '#f3ede2');
+    bgCtx.fillStyle = v; bgCtx.fillRect(0, 0, W, H);
+    bgCtx.fillStyle = bgCtx.createPattern(grainCanvas(200, 16, true), 'repeat');
+    bgCtx.fillRect(0, 0, W, H);
+  }
+  new ResizeObserver(resize).observe(cv);
+
+  // ---------- finger interaction on stage ----------
+  // on the ball: drag to turn it (with a little inertia). Around the ball: trace to move where it hurts.
+  const touches = [];   // ripples: {x,y,th,v,t0,s}; v = direction in the ball's space
+  let dragging = null, dragAdjust = false, turning = null;
+  let ballR = 1;
+  function stagePoint(e) {
+    const r = cv.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    const dx = x - (W / 2 + shiftX), dy = y - (H / 2 + shiftY);
+    return { x, y, th: Math.atan2(dy, dx), dist: Math.hypot(dx, dy) };
+  }
+  const addRipple = (p, s, now) => touches.push({ x: p.x, y: p.y, th: p.th, v: toObject(viewDir(p.th)), t0: now, s });
+  function setFocus(L, th) { L.focus = th; L.fvec = toObject(viewDir(th)); }
+  cv.addEventListener('pointerdown', e => {
+    cv.setPointerCapture(e.pointerId);
+    dragging = e.pointerId;
+    const p = stagePoint(e), now = performance.now() / 1000;
+    addRipple(p, 1, now);
+    if (three && p.dist < ballR * 1.08) {
+      turning = { x: p.x, y: p.y, t: now };
+      spin.x = spin.y = 0; resetting = false;
+      dragAdjust = false;
+      return;
+    }
+    const L = selLayer();
+    dragAdjust = !!L;
+    if (L) {
+      adjusting++;
+      setFocus(L, p.th);
+      if (L.spread >= 0.99) L.spread = 0.45;
+      renderBars();
+    }
+  });
+  let lastRip = 0, lastIcon = 0;
+  cv.addEventListener('pointermove', e => {
+    if (dragging !== e.pointerId) return;
+    const p = stagePoint(e);
+    const now = performance.now() / 1000;
+    if (turning) {
+      const dx = p.x - turning.x, dy = p.y - turning.y, dt = Math.max(0.008, now - turning.t);
+      rotateBall(dy, dx, Math.hypot(dx, dy) / ballR);
+      spin.x = 0.6 * spin.x + 0.4 * (dy / ballR / dt);
+      spin.y = 0.6 * spin.y + 0.4 * (dx / ballR / dt);
+      turning = { x: p.x, y: p.y, t: now };
+      return;
+    }
+    const L = selLayer();
+    if (L) { setFocus(L, p.th); if (now - lastIcon > 0.1) { renderBars(); lastIcon = now; } }
+    if (now - lastRip > 0.06) { addRipple(p, 0.5, now); lastRip = now; }
+  });
+  const endDrag = e => {
+    if (dragging !== e.pointerId) return;
+    dragging = null;
+    // a finger that stopped before lifting leaves no spin
+    if (turning && performance.now() / 1000 - turning.t > 0.08) spin.x = spin.y = 0;
+    turning = null;
+    if (dragAdjust) endAdjust();
+    dragAdjust = false;
+  };
+  cv.addEventListener('pointerup', endDrag);
+  cv.addEventListener('pointercancel', endDrag);
+
+  const resetBtn = $('#resetBtn');
+  resetBtn.addEventListener('click', () => { spin.x = spin.y = 0; resetting = true; });
+
+  // ---------- render loop ----------
+  const N = 720;
+  const disp = new Float32Array(N);   // composite of all layers (2D, for fallback ball and crumbs)
+  const rip = new Float32Array(N);    // finger ripples
+  const layerDisp = [];
+  const crumbs = [];
+  const t0 = performance.now() / 1000;
+  let solo = 0;   // 0 = whole ball, 1 = only the layer being adjusted
+  let lastFrame = t0;
+  let shiftX = 0, shiftY = 0, fitR = 0;   // graphic centre offset and ball radius, eased toward the free area
+  const portraitMQ = window.matchMedia('(orientation: portrait)');
+
+  function ringPath(cx, cy, rOf) {
+    const p = new Path2D();
+    for (let i = 0; i <= N; i++) {
+      const ii = i % N, th = ii / N * TAU, r = rOf(ii);
+      const x = cx + r * Math.cos(th), y = cy + r * Math.sin(th);
+      i ? p.lineTo(x, y) : p.moveTo(x, y);
+    }
+    p.closePath();
+    return p;
+  }
+
+  // 2D fallback: soft white ball with shading
+  function drawBall2D(cx, cy, R) {
+    const body = ringPath(cx, cy, i => Math.max(R * 0.25, R * (1 + 0.24 * disp[i])));
+    const g = ctx.createRadialGradient(cx - R * 0.35, cy - R * 0.4, R * 0.05, cx, cy, R * 1.3);
+    g.addColorStop(0, 'rgba(200,203,210,0.7)'); g.addColorStop(0.55, 'rgba(140,145,156,0.7)'); g.addColorStop(1, 'rgba(70,74,84,0.8)');
+    ctx.fillStyle = g; ctx.fill(body);
+    ctx.strokeStyle = 'rgba(120,100,75,0.25)'; ctx.lineWidth = 1; ctx.stroke(body);
+  }
+
+  function frame() {
+    const now = performance.now() / 1000;
+    const t = now - t0;
+    const fdt = Math.min(0.1, now - lastFrame); lastFrame = now;
+    const sel = selLayer();
+    const kf = 1 - Math.exp(-fdt * 12);
+    const portrait = portraitMQ.matches;
+    // fit the graphic between the tip band at the top and the caption band at the bottom
+    // (the open drawer already shrinks the stage, so nothing else covers it)
+    const overX = 0, overY = 0;
+    const top = 46, bottom = !layers.length ? 100 : recording && recName ? 76 : 48;
+    const aw = W - overX, ah = H - overY - top - bottom;
+    // outermost ring (plus its wave) relative to the ball radius
+    const reach = layers.length ? 1.36 + 0.055 * (layers.length - 1) : 1.3;
+    const tR = Math.max(30, Math.min(aw, ah) / 2 / reach);
+    fitR = fitR ? fitR + (tR - fitR) * kf : tR;
+    shiftX += (-overX / 2 - shiftX) * kf;
+    shiftY += (top + ah / 2 - H / 2 - shiftY) * kf;
+    const cx = W / 2 + shiftX, cy = H / 2 + shiftY;
+    const R = fitR;
+    ballR = R;
+    // inertia after a flick, or easing back to the front
+    if (three && !turning) {
+      const w = Math.hypot(spin.x, spin.y);
+      if (w > 0.02) {
+        rotateBall(spin.x, spin.y, w * fdt);
+        const decay = Math.exp(-fdt * 2.2);
+        spin.x *= decay; spin.y *= decay;
+      }
+      if (resetting) {
+        three.q.slerp(new THREE.Quaternion(), 1 - Math.exp(-fdt * 7));
+        if (1 - Math.abs(three.q.w) < 1e-5) { three.q.identity(); resetting = false; }
+      }
+    }
+    if (three) resetBtn.classList.toggle('show', 1 - Math.abs(three.q.w) > 0.002 && !recording);
+    solo +=((sel && (adjusting > 0 || now - lastAdjust < 0.6) ? 1 : 0) - solo) * kf;
+    const whole = 1 - solo;
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.drawImage(bgCv, 0, 0, W, H);
+
+    // per-layer state for this frame
+    const cur = layers.map(L => {
+      const type = typeOf(L.name);
+      const e = envelope(type.env, t, L.period, L.phase, L.seed);
+      const fadeIn = Math.min(1, (now - L.born) / 0.6);
+      // the pain's place is fixed on the ball; follow it on screen as the ball turns
+      if (!L.fvec) L.fvec = toObject(viewDir(L.focus));
+      if (three) { const v = toView(L.fvec); L.focus = Math.atan2(-v[1], v[0]); }
+      return { L, type, amp: L.amp * e * fadeIn * (type.inward ? -0.55 : 1), sigma: 0.12 + L.spread * 2.4,
+        fx: L.fvec[0], fy: L.fvec[1], fz: L.fvec[2] };
+    });
+    cur.now = now;
+
+    // 2D ring displacement
+    disp.fill(0);
+    while (layerDisp.length < layers.length) layerDisp.push(new Float32Array(N));
+    cur.forEach((c, li) => {
+      const arr = layerDisp[li], L = c.L;
+      for (let i = 0; i < N; i++) {
+        const th = i / N * TAU;
+        let w = 1;
+        if (L.spread < 0.99) { const d = angDist(th, L.focus); w = Math.exp(-d * d / (2 * c.sigma * c.sigma)); }
+        const v = spatial(L, c.type, th, t) * c.amp * w;
+        arr[i] = v; disp[i] += v;
+      }
+    });
+
+    // finger ripples push the surface locally
+    rip.fill(0);
+    for (let j = touches.length - 1; j >= 0; j--) {
+      const T = touches[j], age = now - T.t0;
+      if (age > 1.6) { touches.splice(j, 1); continue; }
+      const k = T.s * 0.35 * Math.exp(-age * 2.5);
+      for (let i = 0; i < N; i++) {
+        const d = angDist(i / N * TAU, T.th);
+        rip[i] += k * Math.exp(-d * d / 0.04) * Math.cos(age * 18 - Math.abs(d) * 12);
+      }
+    }
+    for (let i = 0; i < N; i++) disp[i] += rip[i];
+
+    // ripple circles, like pencil rings
+    touches.forEach(T => {
+      const age = now - T.t0;
+      ctx.strokeStyle = `rgba(90,70,45,${0.3 * (1 - age / 1.6) * T.s})`;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(T.x, T.y, 8 + age * 120, 0, TAU); ctx.stroke();
+    });
+
+    // reference circle
+    ctx.strokeStyle = `rgba(90,70,45,${0.10 + 0.12 * solo})`;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 6]);
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // soft contact shadow under the ball
+    if (whole > 0.01) {
+      ctx.save();
+      ctx.globalAlpha = whole;
+      ctx.translate(cx, cy + R * 1.22); ctx.scale(1, 0.16);
+      const sh = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 1.05);
+      sh.addColorStop(0, 'rgba(90,70,45,0.22)'); sh.addColorStop(1, 'rgba(90,70,45,0)');
+      ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(0, 0, R * 1.05, 0, TAU); ctx.fill();
+      ctx.restore();
+    }
+
+    // each pain as its own crayon waveform ring: orbiting the ball normally,
+    // moving onto the reference circle (alone) while it is adjusted
+    ctx.globalCompositeOperation = 'multiply';
+    layers.forEach((L, li) => {
+      const isSel = L.id === selId;
+      const a = isSel ? 0.7 * whole + solo : 0.45 * whole;
+      if (a < 0.01) return;
+      const orbit = R * (1.2 + li * 0.055);
+      const base = isSel ? orbit + (R - orbit) * solo : orbit;
+      const gain = R * 0.24 * (isSel ? 0.5 + 0.5 * solo : 0.5);
+      const arr = layerDisp[li];
+      const rr = isSel ? solo : 0;
+      const path = ringPath(cx, cy, i => Math.max(4, base + gain * (arr[i] + rip[i] * rr)));
+      crayonStroke(ctx, path, L.c, isSel ? 2.6 + 2.4 * solo : 2, Math.min(1, a));
+      if (isSel && L.spread < 0.99) {
+        const fr = R * (1.2 + layers.length * 0.055 + 0.06);
+        ctx.globalAlpha = Math.min(1, a);
+        ctx.fillStyle = crayon(ctx, L.c);
+        ctx.beginPath(); ctx.arc(cx + fr * Math.cos(L.focus), cy + fr * Math.sin(L.focus), 5, 0, TAU); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    });
+    ctx.globalCompositeOperation = 'source-over';
+
+    // the whole pain: 3D translucent ball
+    if (whole > 0.01) {
+      if (three) {
+        render3D(t, cur, R);
+        ctx.globalAlpha = whole;
+        ctx.drawImage(three.renderer.domElement, shiftX, shiftY, W, H);
+        ctx.globalAlpha = 1;
+      } else {
+        ctx.globalAlpha = whole; drawBall2D(cx, cy, R); ctx.globalAlpha = 1;
+      }
+    }
+
+    // coloured crumbs flick off sharp outward bulges
+    if (layers.length && whole > 0.5) {
+      for (let s = 0; s < 4; s++) {
+        const i = Math.floor(Math.random() * N);
+        if (disp[i] > 0.75 && crumbs.length < 200) {
+          const th = i / N * TAU, r = R * (1 + 0.24 * disp[i]);
+          let best = 0, bc = layers[0].c;
+          layers.forEach((L, li) => { if (layerDisp[li][i] > best) { best = layerDisp[li][i]; bc = L.c; } });
+          crumbs.push({ x: cx + r * Math.cos(th), y: cy + r * Math.sin(th), c: bc,
+            vx: Math.cos(th) * (40 + disp[i] * 80), vy: Math.sin(th) * (40 + disp[i] * 80), life: 1 });
+        }
+      }
+    }
+    for (let j = crumbs.length - 1; j >= 0; j--) {
+      const p = crumbs[j];
+      p.x += p.vx * fdt; p.y += p.vy * fdt; p.vx *= 0.95; p.vy *= 0.95; p.life -= fdt * 1.3;
+      if (p.life <= 0) { crumbs.splice(j, 1); continue; }
+      ctx.globalAlpha = p.life * whole * 0.9;
+      ctx.fillStyle = p.c;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // caption (baked into the video too): the user's name for it, then the words
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    if (recording && recName) {
+      ctx.font = '700 22px "Zen Maru Gothic", "Hiragino Sans", sans-serif';
+      ctx.fillStyle = 'rgba(61,54,46,0.9)';
+      ctx.fillText(recName, cx, H - 40);
+    }
+    if (layers.length) {
+      ctx.font = '700 14px "Zen Maru Gothic", "Hiragino Sans", sans-serif';
+      ctx.fillStyle = 'rgba(61,54,46,0.5)';
+      ctx.fillText(solo > 0.5 && sel ? sel.short : layers.map(l => l.short).join('  ×  '), cx, H - 16);
+    }
+
+    drawLanes(t);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ---------- name + 10 second recording ----------
+  const DURATION = 10;
+  const nameIn = $('#nameIn');
+  function openSheet(id) { $(id).classList.add('open'); }
+  function closeSheet(id) { $(id).classList.remove('open'); }
+
+  $('#saveBtn').addEventListener('click', () => {
+    if (!layers.length || recording) return;
+    $('#nameMix').innerHTML = layers.map(l => `<span style="--c:${l.c}">${l.short}</span>`).join('');
+    step3 = true; renderUI();
+    openSheet('#nameSheet');
+    setTimeout(() => nameIn.focus(), 50);
+  });
+  $('#nameCancel').addEventListener('click', () => { closeSheet('#nameSheet'); step3 = false; renderUI(); });
+  $('#nameGo').addEventListener('click', startRecording);
+  nameIn.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) startRecording(); });
+
+  function pickMime() {
+    if (!window.MediaRecorder) return null;
+    const c = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    return c.find(m => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || '';
+  }
+
+  function startRecording() {
+    nameIn.blur();
+    closeSheet('#nameSheet');
+    recName = nameIn.value.trim();
+    const mime = pickMime();
+    if (mime === null || !cv.captureStream) {
+      showResult(null, 'このブラウザでは動画の保存に対応していません。iPadのSafari（iPadOS 14.5以降）で開いてください。');
+      return;
+    }
+    const stream = cv.captureStream(30);
+    const opts = { videoBitsPerSecond: 8_000_000 };
+    if (mime) opts.mimeType = mime;
+    let rec;
+    try { rec = new MediaRecorder(stream, opts); }
+    catch (err) { showResult(null, '録画を開始できませんでした：' + err.message); return; }
+    const chunks = [];
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = () => {
+      recording = false;
+      $('#rec').style.display = 'none';
+      stream.getTracks().forEach(tr => tr.stop());
+      renderUI();
+      showResult(new Blob(chunks, { type: rec.mimeType || mime || 'video/webm' }), null);
+    };
+    recording = true;
+    renderUI();
+    $('#rec').style.display = 'flex';
+    rec.start(500);
+    const start = performance.now();
+    const tick = () => {
+      const el = (performance.now() - start) / 1000;
+      $('#recT').textContent = Math.max(0, DURATION - el).toFixed(1);
+      $('#recP').style.width = Math.min(100, el / DURATION * 100) + '%';
+      if (el >= DURATION + 0.3) { if (rec.state !== 'inactive') rec.stop(); return; }
+      requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  let outUrl = null, outFile = null;
+  function showResult(blob, err) {
+    const v = $('#out'), note = $('#outNote');
+    if (outUrl) URL.revokeObjectURL(outUrl);
+    outUrl = null; outFile = null;
+    $('#outName').textContent = recName || '痛みのカタチ';
+    if (!blob) {
+      v.style.display = 'none'; $('#dlBtn').style.display = 'none'; $('#shareBtn').style.display = 'none';
+      note.textContent = err;
+    } else {
+      const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
+      const d = new Date(), z = n => String(n).padStart(2, '0');
+      const stamp = `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`;
+      const safe = recName.replace(/[\\/:*?"<>|\s]+/g, '_').replace(/^_+|_+$/g, '') || 'itami';
+      const fname = `${safe}_${stamp}.${ext}`;
+      outUrl = URL.createObjectURL(blob);
+      outFile = new File([blob], fname, { type: blob.type });
+      v.style.display = ''; v.src = outUrl; v.play().catch(() => {});
+      const dl = $('#dlBtn'); dl.style.display = ''; dl.href = outUrl; dl.download = fname;
+      const canShare = navigator.canShare && navigator.canShare({ files: [outFile] });
+      $('#shareBtn').style.display = canShare ? '' : 'none';
+      dl.classList.toggle('primary', !canShare);
+      note.textContent = `${layers.map(l => l.short).join(' × ')} ／ 10秒` +
+        (canShare ? '　「共有・写真に保存」から「ビデオを保存」を選ぶと写真アプリに入ります。' : '');
+    }
+    openSheet('#resultSheet');
+  }
+  $('#shareBtn').addEventListener('click', async () => {
+    if (!outFile) return;
+    try { await navigator.share({ files: [outFile], title: recName || '痛みのカタチ' }); } catch (_) {}
+  });
+  $('#closeBtn').addEventListener('click', () => {
+    closeSheet('#resultSheet'); $('#out').pause();
+    step3 = false; renderUI();
+  });
+
+  renderUI();
+})();
+</script>
+</body>
+</html>
