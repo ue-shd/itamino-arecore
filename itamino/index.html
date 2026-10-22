@@ -342,9 +342,9 @@
 (() => {
   // ---------- onomatopoeia ----------
   // Words: the 40 onomatopoeia among the 98 pain expressions of 楠見・中本・子安 (2010), grouped by its 11 clusters,
-  // plus 「がーん」 from 土斐崎ら (2014). Descriptions are the papers' cluster descriptions, not per-word ratings.
-  // No study fixes a shape or period per word, so each word starts from its cluster's traits
-  // (strength, sharpness, time pattern, range) and the patient adjusts it.
+  // plus 「がーん」 from 土斐崎ら (2014). Descriptions are the papers' cluster descriptions.
+  // No study fixes a shape or period per word, so shape, fineness and period start from the cluster;
+  // strength, spread, sharpness and pulse depth start from the word's scores (SCORES), and the patient adjusts them.
   // wave: shape = spatial pattern around the ring, env = temporal envelope, rot = rotation (turns per period)
   const CLUSTERS = {
     C: { label: '破壊刺激反復', desc: '強い痛み。体を壊すような刺激の繰り返し', time: '反復', parts: '胸・腹、頭、歯', c: '#c8473f',
@@ -371,7 +371,7 @@
   // [cluster, expression, result reported for that word, wave overrides backed by that result]
   const WORDS = [
     ['C', 'がんがんする', '頭で最も選ばれた（98%）。経験頻度が最も高い'],
-    ['C', 'ずきんずきんする', '断続的。体の内部・頭部側に対応'],
+    ['C', 'ずきんずきんする', '体の内部・頭部側に対応'],
     ['C', 'ずきずきする'],
     ['C', 'ずきんとする'],
     ['C', 'きりきりする', '胃で最も選ばれた（63%）'],
@@ -400,8 +400,8 @@
     ['I', 'びりびりする'],
     ['I', 'ぴりぴりする'],
     ['I', 'ちりちりする'],
-    ['I', 'むずむずする', '皮膚表面の広い範囲の痛み。弱い痛みのイメージ', { spread: 1 }],
-    ['J', 'ちくちくする', '断続的'],
+    ['I', 'むずむずする', '皮膚表面の広い範囲の痛み。弱い痛みのイメージ'],
+    ['J', 'ちくちくする'],
     ['J', 'ひりひりする', '皮膚（体の表面）で最も選ばれた（70%）'],
     ['J', 'じんとする', '経験頻度が上位3番目'],
     ['J', 'ごりごりする'],
@@ -412,17 +412,59 @@
     ['K', 'じくじくする'],
     ['X', 'がーん'],
   ];
+  // per-word principal component scores from 楠見ら (2010) 付表1, oriented as in its Figures 3 and 4:
+  // [strength (Fig.3 PC1), breadth: + wide surface / - narrow deep (Fig.3 PC2), persistence: + continuous / - intermittent (Fig.3 PC3),
+  //  pressure (Fig.4 PC1), sharpness: + sharp, hard / - dull, hot (Fig.4 PC2)].
+  // 付表1 lists Fig.3 PC1 and PC2 with the opposite sign to the figure, so those two are flipped here.
+  const SCORES = {
+    'ずきんとする': [0.418, -0.696, -1.143, 0.706, 0.339],     'きりきりする': [0.667, -0.217, -1.291, 0.971, 0.757],
+    'ぎんぎんする': [-0.027, -0.679, -2.006, 0.418, 0.911],    'ずきずきする': [1.552, 0.247, -1.475, 0.949, 0.029],
+    'がんがんする': [2.043, -1.019, -1.952, 2.008, 0.197],     'ずきんずきんする': [1.610, -0.671, -1.754, 1.755, 0.605],
+    'きーんとする': [-1.149, -1.205, 0.774, -0.323, 2.136],    'きんきんする': [-0.307, -0.820, -0.647, -0.253, 1.790],
+    'ひやりとする': [-1.092, 0.782, -0.069, -1.645, 1.706],    'ちくっとする': [-2.758, -0.290, 0.406, -1.552, 1.643],
+    'ちくりとする': [-2.556, -0.858, -0.769, -1.492, 1.458],   'びりっとする': [-1.573, -1.331, -0.177, -0.707, 0.689],
+    'びくっとする': [-1.759, -1.343, 0.779, -0.986, 0.731],    'つんとする': [-1.900, -0.631, 1.271, -1.183, 0.541],
+    'ちかちかする': [-2.611, -0.276, 0.282, -1.629, -0.222],   'きゅーんとする': [0.471, -0.003, 0.965, 0.312, -0.566],
+    'じーんとする': [0.530, 0.148, 0.553, -0.155, -0.961],     'かーっとする': [-0.242, 0.847, 1.668, -0.135, -0.563],
+    'ずーんとする': [0.820, -0.301, 2.243, 0.692, -0.845],     'ぐいぐいする': [0.455, 1.152, 0.253, 0.038, -1.527],
+    'じわーとする': [0.596, 1.079, 0.658, -0.670, -1.475],     'もやもやする': [0.322, 1.658, 0.325, -0.831, -2.059],
+    'うずうずする': [-0.148, 0.885, 0.377, -0.961, -1.201],    'じわっとする': [-0.600, 0.578, 0.321, -1.261, -1.216],
+    'ぐりぐりする': [0.005, 0.517, 0.047, -0.452, -0.874],     'じんじんする': [0.229, 0.624, 0.193, -0.400, -0.824],
+    'しくしくする': [-0.048, 1.268, -0.077, -0.917, -0.506],   'びりびりする': [-0.184, 1.629, -1.115, -1.008, 0.072],
+    'ぴりぴりする': [-0.868, 1.259, -1.499, -1.529, 0.417],    'ちりちりする': [-1.014, 2.015, -0.649, -1.597, -0.591],
+    'むずむずする': [-1.038, 2.642, -0.328, -2.222, -1.729],   'じんとする': [-0.216, -0.557, -0.861, -0.659, -0.620],
+    'ごりごりする': [-0.012, 0.013, -0.046, 0.584, -0.184],    'つんつんする': [-1.523, 0.343, -1.623, -1.204, 0.647],
+    'ちくちくする': [-0.921, 0.467, -2.115, -0.384, 0.995],    'ひりひりする': [-0.368, 0.666, -0.747, -1.012, -0.143],
+    'びーんとする': [-0.304, 0.387, 0.474, -0.440, 0.589],     'ぎしぎしする': [-0.387, 0.376, 0.208, -0.074, 0.032],
+    'きゅっとする': [-0.875, -0.273, 0.493, -0.742, -0.157],   'じくじくする': [-0.348, -0.142, 0.649, -0.573, -0.500],
+  };
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  // starting strength / spread / sharpness and how far the pain drops between pulses (depth) from the word's scores
+  const scoreWave = s => s ? {
+    amp: clamp(0.55 + 0.15 * s[0], 0.2, 0.95),
+    spread: clamp(0.5 + 0.2 * s[1], 0.12, 1),
+    depth: clamp(0.65 - 0.25 * s[2], 0.2, 1),
+    sharp: clamp(0.5 + 0.2 * s[4], 0.05, 0.95),
+  } : {};
+  // the word's place in the study in plain words (only where the score is clearly away from the middle)
+  const scoreText = s => {
+    if (!s) return '';
+    const w = (v, pos, neg) => v >= 0.5 ? pos : v <= -0.5 ? neg : '';
+    const parts = [w(s[0], '強い', '弱い'), w(s[1], '広い範囲', '狭く深い'), w(s[2], '続く', '途切れる'), w(s[4], '鋭い', '鈍い・熱い')].filter(Boolean);
+    return parts.length ? '研究での評価：' + parts.join('・') : '';
+  };
   const shade = (hex, k) => {
     const n = parseInt(hex.slice(1), 16);
     return '#' + [n >> 16 & 255, n >> 8 & 255, n & 255]
       .map(v => Math.round(k > 0 ? v + (255 - v) * k : v * (1 + k)).toString(16).padStart(2, '0')).join('');
   };
-  // words of one cluster share its wave and get slightly different shades of its colour
+  // words of one cluster share its wave shape and get slightly different shades of its colour;
+  // strength, spread, sharpness and pulse depth come from the word's own scores
   const TYPES = WORDS.map(([cl, name, note, over]) => {
     const same = WORDS.filter(w => w[0] === cl), j = same.findIndex(w => w[1] === name);
     const k = same.length > 1 ? (0.5 - j / (same.length - 1)) * 0.36 : 0;
-    return { name, short: name.replace(/(とする|する)$/, ''), cl, note: note || '',
-      c: shade(CLUSTERS[cl].c, k), ...CLUSTERS[cl].wave, ...(over || {}) };
+    return { name, short: name.replace(/(とする|する)$/, ''), cl, note: note || '', score: scoreText(SCORES[name]),
+      c: shade(CLUSTERS[cl].c, k), depth: 1, ...CLUSTERS[cl].wave, ...scoreWave(SCORES[name]), ...(over || {}) };
   });
   const typeOf = name => TYPES.find(t => t.name === name);
 
@@ -531,6 +573,8 @@
       default:        return 0.75 + 0.25 * Math.sin(TAU * x);
     }
   }
+  // a continuous pain (small depth) never fades out between pulses; an intermittent one drops to nothing
+  const layerEnv = (type, t, L) => 1 - type.depth * (1 - envelope(type.env, t, L.period, L.phase, L.seed));
 
   // spatial pattern; returns roughly -0.3..1 (positive = outward)
   function spatial(L, type, th, t) {
@@ -609,7 +653,7 @@
   });
   const src = document.createElement('div');
   src.className = 'src';
-  src.innerHTML = 'ことばとグループの説明：楠見・中本・子安（2010）「痛みの比喩表現の身体感覚と認知の構造」『心理学研究』80(6)、土斐崎ら（2014）。<br>波の形は研究で決まったものではなく、グループの特徴（強さ・鋭さ・時間のパターン）から作った出発点です。';
+  src.innerHTML = 'ことばとグループの説明：楠見・中本・子安（2010）「痛みの比喩表現の身体感覚と認知の構造」『心理学研究』80(6)、土斐崎ら（2014）。<br>強さ・広がり・鋭さ・途切れ方の初期値は、同論文の付表1にある各ことばの主成分得点から決めています。波の形と細かさは研究で決まっていないため、グループの特徴から作った出発点です。';
   wordsEl.appendChild(src);
 
   function addLayer(name) {
@@ -694,7 +738,7 @@
       area.moveTo(0, h);
       for (let i = 0; i <= pts; i++) {
         const tt = t0l + i / pts * LANE_SPAN;
-        const e = Math.min(1, envelope(type.env, tt, L.period, L.phase, L.seed));
+        const e = Math.min(1, layerEnv(type, tt, L));
         const x = i / pts * w, y = h - 3 - e * L.amp * (h - 6);
         area.lineTo(x, y); i ? line.lineTo(x, y) : line.moveTo(x, y);
       }
@@ -760,7 +804,7 @@
     $('#selName').textContent = L ? L.name : '—';
     const T = L && typeOf(L.name), C = T && CLUSTERS[T.cl];
     $('#selDesc').textContent = L ? (T.cl === 'X' ? '' : T.cl + ' ') + C.label + '｜' + C.desc : 'ことばを選ぶと調整できます';
-    $('#selMeta').innerHTML = L ? [C.time && '時間のパターン：' + C.time, C.parts && '使われやすい部位：' + C.parts, T.note]
+    $('#selMeta').innerHTML = L ? [C.time && '時間のパターン：' + C.time, C.parts && '使われやすい部位：' + C.parts, T.score, T.note]
       .filter(Boolean).join('<br>') : '';
     const icon = $('#selIcon');
     if (L) drawGlyph(icon, L, typeOf(L.name), L.c); else icon.getContext('2d').clearRect(0, 0, icon.width, icon.height);
@@ -1106,7 +1150,7 @@
     // per-layer state for this frame
     const cur = layers.map(L => {
       const type = typeOf(L.name);
-      const e = envelope(type.env, t, L.period, L.phase, L.seed);
+      const e = layerEnv(type, t, L);
       const fadeIn = Math.min(1, (now - L.born) / 0.6);
       // the pain's place is fixed on the ball; follow it on screen as the ball turns
       if (!L.fvec) L.fvec = toObject(viewDir(L.focus));
