@@ -228,6 +228,9 @@
       <div class="set-row"><span>叩く強さの感度</span><output id="motion-out"></output></div>
       <input type="range" id="motion-range" min="0.05" max="2" step="0.01" aria-label="いっぱいに叩いたときの揺れの大きさ">
       <p class="note">数字は「いちばん強く叩いたとみなす揺れ(m/s²)」です。小さいほど軽く叩いても深く沈みます。</p>
+      <div class="set-row"><span>同じ場所で深くなり始めるまでの時間</span><output id="hold-out"></output></div>
+      <input type="range" id="hold-range" min="0" max="3" step="0.1" aria-label="深くなり始めるまでの秒数">
+      <p class="note">触れてからこの時間は、指を止めていても砂は沈みません。</p>
       <label class="switch"><input type="checkbox" id="meter-toggle">面の左上に計測値を出す</label>
     </div>
   </div>
@@ -436,6 +439,10 @@ const r2 = v => Math.round(v * 100) / 100;
    速さ        … 速いほど細く浅い／速いと周囲に粒が飛ぶ
    本体の揺れ  … 触れた瞬間の揺れの分だけ穴があき、強いと粒が飛ぶ
    離す瞬間の速さ … 進行方向に砂が飛ぶ（はじく） */
+const HOLD_KEY = 'katachi-hold-ms';
+let holdMs = 1000;   // 触れてからこの時間は、同じ場所にいても深くならない
+{ const v = parseFloat(store.get(HOLD_KEY)); if (v >= 0 && v <= 3000) holdMs = v; }
+const STILL_CELLS = 5 * K;   // 指の震えとみなす範囲。これより動いて初めて「動いた」とする
 const contacts = new Map();
 let openGroup = null;
 let pendingGrains = [];
@@ -448,10 +455,10 @@ function sizeToArea(s) {
 function shape(c) {
   const sp = c.v / (c.v + 1.2), dwell = 1 - Math.exp(-c.press / 900), a = c.a;
   // 書き始めは浅く入り、少し動くか少し経つと本来の深さになる
-  const entry = clamp(Math.max(c.dist / (24 * K), c.age / 500)), e = entry * entry * (3 - 2 * entry);
+  const entry = clamp(Math.max((c.far - STILL_CELLS) / (30 * K), c.press / 400)), e = entry * entry * (3 - 2 * entry);
   return {
-    r: lerp(5, 34, a) * K * (1 - .55 * sp) * (1 + .22 * dwell) * lerp(.7, 1, e),
-    d: ((1.2 + 3.6 * a) * (1 - .78 * sp) + (6 + 10 * a) * dwell) * K * lerp(.12, 1, e),
+    r: lerp(5, 34, a) * K * (1 - .55 * sp) * (1 + .22 * dwell) * lerp(.45, 1, e),
+    d: ((1.2 + 3.6 * a) * (1 - .78 * sp) + (6 + 10 * a) * dwell) * K * lerp(.06, 1, e),
     sp,
   };
 }
@@ -485,7 +492,7 @@ const Contact = {
     const stroke = { id: s.id, pointerType: s.pointerType, impact: null, flick: null, samples: [] };
     g.strokes.push(stroke);
     const c = {
-      id: s.id, x: s.x, y: s.y, t0: s.t, lt: s.t, now0: now, lf: now, a: sizeToArea(s), v: 0, press: 0, dist: 0, age: 0,
+      id: s.id, x: s.x, y: s.y, t0: s.t, lt: s.t, now0: now, lf: now, a: sizeToArea(s), v: 0, press: 0, far: 0, age: 0, moved: false, ax: s.x, ay: s.y, at: s.t, x0: s.x, y0: s.y, lastMoveNow: now,
       stroke, last: s, recent: [{ t: s.t, x: s.x, y: s.y }], struck: false, lastLog: s.t,
     };
     contacts.set(s.id, c);
@@ -500,13 +507,19 @@ const Contact = {
     const dt = Math.max(1, s.t - c.lt), dx = s.x - c.x, dy = s.y - c.y, dist = Math.hypot(dx, dy);
     c.a = lerp(c.a, sizeToArea(s), .25);
     const before = shape(c);
-    c.v = c.dist === 0 ? dist / dt : lerp(c.v, dist / dt, .4);
-    c.dist += dist; c.age = s.t - c.t0;
-    if (c.v > .08) c.press = Math.max(0, c.press - dt * 2.2);
+    c.age = s.t - c.t0;
+    c.far = Math.max(c.far, Math.hypot(s.x - c.x0, s.y - c.y0));
+    const fromAnchor = Math.hypot(s.x - c.ax, s.y - c.ay);
+    if (fromAnchor > STILL_CELLS) {
+      const av = fromAnchor / Math.max(1, s.t - c.at);
+      c.v = c.moved ? lerp(c.v, av, .5) : av;
+      c.moved = true; c.ax = s.x; c.ay = s.y; c.at = s.t; c.lastMoveNow = performance.now();
+      c.press = Math.max(0, c.press - dt * 2.2);
+    }
     const sh = shape(c);
     c.recent.push({ t: s.t, x: s.x, y: s.y });
     while (c.recent.length > 2 && s.t - c.recent[0].t > 60) c.recent.shift();
-    if (dist > .4) {
+    if (dist > .4 && (c.moved || c.age >= holdMs)) {
       const dirX = dx / dist, dirY = dy / dist, n = Math.max(1, Math.ceil(dist / Math.max(1, sh.r * .14)));
       for (let i = 1; i <= n; i++) {
         const q = i / n, rough = 1 + (Math.random() - .5) * sh.sp * .9;
@@ -529,7 +542,7 @@ const Contact = {
     const c = contacts.get(s.id); if (!c) return;
     Contact.move(s);
     const now = performance.now(), dur = s.t - c.t0;
-    if (!c.struck && dur < 200) {
+    if (!c.struck && dur < 250) {
       // 揺れが取れないときは、短い接触を「叩いた」とみなし接触幅から強さを推定する
       strike(c, stayed(c) * (motionLive()
         ? clamp((motionPeak(c.now0 - 40, now) - motion.floor) / motion.max)
@@ -549,7 +562,7 @@ const Contact = {
   },
 };
 /* 触れた場所にとどまっていれば1、動いていれば0（動き出した指は叩きでなく書き始め） */
-const stayed = c => clamp(1 - c.dist / (10 * K));
+const stayed = c => clamp(1 - (c.far - STILL_CELLS) / (10 * K));
 /* 触れた瞬間の衝撃の穴 */
 function strike(c, I) {
   c.struck = true;
@@ -568,15 +581,16 @@ function tick(now) {
     const dt = Math.min(50, now - c.lf); c.lf = now;
     c.age = now - c.now0;
     if (!c.struck && now - c.now0 >= 90 && motionLive()) {
-      const m = motionPeak(c.now0 - 40, c.now0 + 90);
-      strike(c, stayed(c) * clamp((m - motion.floor) / motion.max));
+      const I = stayed(c) * clamp((motionPeak(c.now0 - 40, c.now0 + 90) - motion.floor) / motion.max);
+      if (I >= .6) strike(c, I);
     }
-    if (now - (c.lastMoveNow || c.now0) > 30 && c.last.t === c.lt) {
+    if (now - c.lastMoveNow > 60) {
       c.v *= .8;
       if (c.v < .08) {
-        c.press += dt; c.ref = null;
+        c.ref = null;
+        if (c.age >= holdMs) c.press += dt;
         const sh = shape(c);
-        press(c.x, c.y, sh.r, sh.d);
+        if (c.age >= holdMs) press(c.x, c.y, sh.r, sh.d);
         if (now - (c.lastDwellLog || 0) > 100) {
           c.lastDwellLog = now;
           logSample(c, { ...c.last, t: now - c.now0 + c.t0 }, sh);
@@ -680,7 +694,6 @@ surfaceCv.addEventListener('pointermove', e => {
   const list = e.getCoalescedEvents ? e.getCoalescedEvents() : null;
   if (list && list.length) for (const ev of list) Contact.move({ ...pointerToSample(ev), t: evTime(ev) });
   else Contact.move(pointerToSample(e));
-  contacts.get(e.pointerId).lastMoveNow = performance.now();
 });
 const endPtr = e => { if (contacts.has(e.pointerId)) Contact.end(pointerToSample(e)); };
 surfaceCv.addEventListener('pointerup', endPtr);
@@ -739,7 +752,7 @@ function buildData(name, savedAt) {
     app: 'katachi-de-hyougen', version: 1, name, savedAt, sessionStartedAt: session.startedAt,
     surface: { width: W, height: H, heightUnit: 'cell', printedCellMm: .1 },
     device: { userAgent: navigator.userAgent, screen: [screen.width, screen.height], dpr: devicePixelRatio, motion: motion.state, touchPoints: navigator.maxTouchPoints },
-    settings: { motionMax: motion.max },
+    settings: { motionMax: motion.max, holdMs },
     sampleFields: SAMPLE_FIELDS,
     groups: session.groups,
     heightmap: { width: W, height: H, encoding: 'int16le-base64', scale: 100, data: encodeHeight(field) },
@@ -1113,6 +1126,8 @@ function refreshSettings() {
   $('#motion-status').textContent = label[motion.state];
   $('#motion-range').value = motion.max;
   $('#motion-out').textContent = motion.max.toFixed(2);
+  $('#hold-range').value = holdMs / 1000;
+  $('#hold-out').textContent = (holdMs / 1000).toFixed(1) + '秒';
   $('#meter-toggle').checked = meterOn;
 }
 $('#btn-settings').addEventListener('click', () => { refreshSettings(); $('#settings-sheet').hidden = false; });
@@ -1120,6 +1135,11 @@ $('#motion-range').addEventListener('input', e => {
   motion.max = parseFloat(e.target.value);
   $('#motion-out').textContent = motion.max.toFixed(2);
   store.set(MOTION_KEY, String(motion.max));
+});
+$('#hold-range').addEventListener('input', e => {
+  holdMs = Math.round(parseFloat(e.target.value) * 1000);
+  $('#hold-out').textContent = (holdMs / 1000).toFixed(1) + '秒';
+  store.set(HOLD_KEY, String(holdMs));
 });
 $('#meter-toggle').addEventListener('change', e => {
   meterOn = e.target.checked; store.set(METER_KEY, meterOn ? '1' : '0');
