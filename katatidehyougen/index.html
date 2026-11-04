@@ -447,9 +447,11 @@ function sizeToArea(s) {
 }
 function shape(c) {
   const sp = c.v / (c.v + 1.2), dwell = 1 - Math.exp(-c.press / 900), a = c.a;
+  // 書き始めは浅く入り、少し動くか少し経つと本来の深さになる
+  const entry = clamp(Math.max(c.dist / (24 * K), c.age / 500)), e = entry * entry * (3 - 2 * entry);
   return {
-    r: lerp(5, 34, a) * K * (1 - .55 * sp) * (1 + .22 * dwell),
-    d: ((1.2 + 3.6 * a) * (1 - .78 * sp) + (6 + 10 * a) * dwell) * K,
+    r: lerp(5, 34, a) * K * (1 - .55 * sp) * (1 + .22 * dwell) * lerp(.7, 1, e),
+    d: ((1.2 + 3.6 * a) * (1 - .78 * sp) + (6 + 10 * a) * dwell) * K * lerp(.12, 1, e),
     sp,
   };
 }
@@ -483,12 +485,12 @@ const Contact = {
     const stroke = { id: s.id, pointerType: s.pointerType, impact: null, flick: null, samples: [] };
     g.strokes.push(stroke);
     const c = {
-      id: s.id, x: s.x, y: s.y, t0: s.t, lt: s.t, now0: now, lf: now, a: sizeToArea(s), v: 0, press: 0, dist: 0, moved: 0,
+      id: s.id, x: s.x, y: s.y, t0: s.t, lt: s.t, now0: now, lf: now, a: sizeToArea(s), v: 0, press: 0, dist: 0, age: 0,
       stroke, last: s, recent: [{ t: s.t, x: s.x, y: s.y }], struck: false, lastLog: s.t,
     };
     contacts.set(s.id, c);
     const sh = shape(c);
-    press(s.x, s.y, sh.r * .8, sh.d * .5 + .4);
+    press(s.x, s.y, sh.r, sh.d);
     logSample(c, s, sh);
     meter(c, s, sh);
     return c;
@@ -498,7 +500,8 @@ const Contact = {
     const dt = Math.max(1, s.t - c.lt), dx = s.x - c.x, dy = s.y - c.y, dist = Math.hypot(dx, dy);
     c.a = lerp(c.a, sizeToArea(s), .25);
     const before = shape(c);
-    c.v = lerp(c.v, dist / dt, .4);
+    c.v = c.dist === 0 ? dist / dt : lerp(c.v, dist / dt, .4);
+    c.dist += dist; c.age = s.t - c.t0;
     if (c.v > .08) c.press = Math.max(0, c.press - dt * 2.2);
     const sh = shape(c);
     c.recent.push({ t: s.t, x: s.x, y: s.y });
@@ -517,7 +520,6 @@ const Contact = {
       if (spray > 0 && Math.random() < spray * .8) {
         spawnGrains(s.x, s.y, Math.atan2(dirY, dirX) + (Math.random() < .5 ? 1 : -1) * 1.1, .9, (10 + c.v * 8) * K, 1 + (spray * 3 | 0), performance.now(), .7);
       }
-      c.dist += dist;
     }
     c.x = s.x; c.y = s.y; c.lt = s.t; c.last = s;
     logSample(c, s, sh);
@@ -527,9 +529,11 @@ const Contact = {
     const c = contacts.get(s.id); if (!c) return;
     Contact.move(s);
     const now = performance.now(), dur = s.t - c.t0;
-    if (!c.struck && !motionLive() && dur < 200) {
+    if (!c.struck && dur < 200) {
       // 揺れが取れないときは、短い接触を「叩いた」とみなし接触幅から強さを推定する
-      strike(c, (.18 + .5 * c.a * clamp(1.2 - dur / 200)) * clamp(1 - c.dist / (30 * K)));
+      strike(c, stayed(c) * (motionLive()
+        ? clamp((motionPeak(c.now0 - 40, now) - motion.floor) / motion.max)
+        : .18 + .5 * c.a * clamp(1.2 - dur / 200)));
     }
     // はじく：離す直前の速さで砂を飛ばす
     const first = c.recent[0], lastP = c.recent[c.recent.length - 1], span = Math.max(1, lastP.t - first.t);
@@ -544,13 +548,15 @@ const Contact = {
     contacts.delete(s.id);
   },
 };
+/* 触れた場所にとどまっていれば1、動いていれば0（動き出した指は叩きでなく書き始め） */
+const stayed = c => clamp(1 - c.dist / (10 * K));
 /* 触れた瞬間の衝撃の穴 */
 function strike(c, I) {
   c.struck = true;
   c.stroke.impact = r2(I);
-  if (I <= .02) return;
+  if (I <= .05) return;
   const a = c.a, s = c.stroke.samples[0], x = s[1], y = s[2];
-  const r = (lerp(5, 26, a) + 18 * I) * K, d = (1.5 + 20 * I) * K;
+  const r = (lerp(5, 26, a) + 18 * I) * K, d = 22 * Math.pow(I, 1.5) * K;   // 軽い接触の揺れではほとんど沈まない
   for (let i = 0; i < 3; i++) press(x, y, r, d);
   const spray = clamp((I - .4) / .6);
   if (spray > 0) spawnGrains(x, y, 0, 6.28, r * 1.6 + 70 * I * K, Math.round(spray * 60), performance.now(), .85);
@@ -560,9 +566,10 @@ function strike(c, I) {
 function tick(now) {
   for (const c of contacts.values()) {
     const dt = Math.min(50, now - c.lf); c.lf = now;
-    if (!c.struck && now - c.now0 >= 70 && motionLive()) {
-      const m = motionPeak(c.now0 - 40, c.now0 + 70);
-      strike(c, clamp((m - motion.floor) / motion.max));
+    c.age = now - c.now0;
+    if (!c.struck && now - c.now0 >= 90 && motionLive()) {
+      const m = motionPeak(c.now0 - 40, c.now0 + 90);
+      strike(c, stayed(c) * clamp((m - motion.floor) / motion.max));
     }
     if (now - (c.lastMoveNow || c.now0) > 30 && c.last.t === c.lt) {
       c.v *= .8;
