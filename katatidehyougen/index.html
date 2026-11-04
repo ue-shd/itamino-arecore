@@ -1,0 +1,1142 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="かたちで表現">
+<meta name="theme-color" content="#e8e3d8">
+<title>かたちで表現</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #e8e3d8;
+    --card: #fffdf8;
+    --ink: #3d362e;
+    --muted: #7d7366;
+    --line: rgba(90, 70, 45, .16);
+    --shadow: 0 10px 40px rgba(70, 55, 35, .18), 0 1px 3px rgba(70, 55, 35, .1);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink);
+    font-family: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    touch-action: none; overscroll-behavior: none;
+  }
+  [hidden] { display: none !important; }
+  button { font: inherit; color: inherit; touch-action: manipulation; }
+
+  /* ---------- 作る画面 ---------- */
+  #app {
+    position: fixed; inset: 0; display: flex;
+    padding: max(10px, env(safe-area-inset-top)) max(0px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  }
+  #stage { flex: 1; min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  #surface-box { position: relative; box-shadow: 0 1px 2px rgba(70,55,35,.2), 0 4px 18px rgba(70,55,35,.12); border-radius: 4px; }
+  #surface { display: block; width: 100%; height: 100%; touch-action: none; border-radius: 4px; cursor: crosshair; }
+  #hint {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    pointer-events: none; color: rgba(60,50,40,.42); font-size: 19px; letter-spacing: .14em; transition: opacity .5s;
+  }
+  #meter {
+    position: absolute; left: 10px; top: 10px; pointer-events: none; font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace;
+    background: rgba(255,253,248,.82); border-radius: 8px; padding: 6px 10px; white-space: pre; color: var(--ink);
+  }
+  #rail { width: 76px; flex: none; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 0 6px; }
+  .rail-btn {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    width: 100%; min-height: 62px; border: 0; border-radius: 14px; background: transparent; font-size: 12px; font-weight: 700; cursor: pointer;
+  }
+  .rail-btn:active { background: rgba(90,70,45,.1); }
+  .rail-btn:disabled { opacity: .3; }
+  .rail-btn svg { width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .rail-btn.primary { background: var(--ink); color: #fffdf8; }
+  .rail-btn.primary:active { background: #5a5046; }
+  .rail-gap { height: 12px; flex: none; }
+  @media (orientation: portrait) {
+    #app { flex-direction: column; padding: max(10px, env(safe-area-inset-top)) 10px max(6px, env(safe-area-inset-bottom)); }
+    #rail { width: 100%; flex-direction: row; padding: 6px 0 0; max-width: 620px; margin: 0 auto; }
+    .rail-btn { min-height: 58px; }
+    .rail-gap { display: none; }
+  }
+
+  /* ---------- シート ---------- */
+  .sheet {
+    position: fixed; inset: 0; z-index: 10; background: rgba(50,42,32,.38); display: flex; align-items: center; justify-content: center;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  }
+  .panel {
+    background: var(--card); border-radius: 22px; box-shadow: var(--shadow); width: min(760px, 100%); max-height: 100%;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .panel-head { display: flex; align-items: center; gap: 8px; padding: 16px 16px 10px 24px; }
+  .panel-head h2 { margin: 0; font-size: 19px; flex: 1; letter-spacing: .04em; }
+  .panel-body { padding: 4px 24px 22px; overflow-y: auto; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+  .x-btn { width: 44px; height: 44px; border: 0; background: transparent; font-size: 24px; line-height: 1; border-radius: 12px; cursor: pointer; color: var(--muted); }
+  .x-btn:active { background: rgba(90,70,45,.1); }
+  .btn {
+    min-height: 48px; padding: 0 20px; border-radius: 14px; border: 1.5px solid var(--line); background: #fff; font-weight: 700; font-size: 15px; cursor: pointer;
+  }
+  .btn:active { background: #f1ece2; }
+  .btn:disabled { opacity: .45; }
+  .btn.primary { background: var(--ink); border-color: var(--ink); color: #fffdf8; }
+  .btn.primary:active { background: #5a5046; }
+  .btn.danger { color: #a33a2a; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .row.end { justify-content: flex-end; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .pair figure { margin: 0; }
+  .pair img { display: block; width: 100%; aspect-ratio: 4/3; border-radius: 8px; border: 1px solid var(--line); background: #f4f0e7; }
+  .pair figcaption { font-size: 13px; color: var(--muted); margin-top: 5px; text-align: center; }
+  label.field { display: block; font-size: 14px; font-weight: 700; margin-bottom: 16px; }
+  input[type=text] {
+    display: block; width: 100%; margin-top: 7px; height: 50px; padding: 0 14px; border-radius: 12px; border: 1.5px solid var(--line);
+    background: #fff; font: inherit; font-size: 18px; color: inherit; -webkit-user-select: text; user-select: text; touch-action: manipulation;
+  }
+  input[type=text]:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .note { font-size: 13px; color: var(--muted); line-height: 1.7; margin: 0 0 14px; }
+  .sub { font-size: 14px; font-weight: 700; margin: 18px 0 8px; }
+
+  #list-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+  .work-card { padding: 0; border: 0; background: none; text-align: left; cursor: pointer; }
+  .work-card img { display: block; width: 100%; aspect-ratio: 4/3; border-radius: 8px; border: 1px solid var(--line); background: #f4f0e7; }
+  .work-card b { display: block; font-size: 15px; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .work-card small { color: var(--muted); font-size: 12px; }
+
+  #tilt-sheet { padding: 0; background: #d9d3c6; display: block; }
+  #tilt-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  #tilt-close { position: absolute; right: max(16px, env(safe-area-inset-right)); top: max(16px, env(safe-area-inset-top)); }
+  #tilt-tip { position: absolute; left: 0; right: 0; bottom: max(16px, env(safe-area-inset-bottom)); text-align: center; font-size: 14px; color: rgba(60,50,40,.7); pointer-events: none; }
+
+  input[type=range] { width: 100%; height: 44px; margin: 0; touch-action: none; accent-color: var(--ink); }
+  .set-row { display: flex; align-items: baseline; justify-content: space-between; font-size: 14px; font-weight: 700; }
+  .set-row output { font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .switch { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; min-height: 44px; }
+  .switch input { width: 22px; height: 22px; accent-color: var(--ink); }
+  #toast {
+    position: fixed; z-index: 30; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translate(-50%, 16px); opacity: 0; transition: .25s;
+    background: var(--ink); color: #fffdf8; border-radius: 12px; padding: 11px 18px; font-size: 14px; pointer-events: none; max-width: 88vw;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #busy { position: fixed; inset: 0; z-index: 25; display: flex; align-items: center; justify-content: center; background: rgba(50,42,32,.22); font-weight: 700; }
+  #busy span { background: var(--card); border-radius: 14px; padding: 14px 24px; box-shadow: var(--shadow); }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <main id="stage">
+    <div id="surface-box">
+      <canvas id="surface" width="1280" height="960" aria-label="指でさわって形を作る面"></canvas>
+      <div id="hint">指でさわる</div>
+      <div id="meter" hidden></div>
+    </div>
+  </main>
+  <nav id="rail">
+    <button class="rail-btn" id="btn-undo" disabled><svg viewBox="0 0 24 24"><path d="M9 7 4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 6 6"/></svg>戻す</button>
+    <button class="rail-btn" id="btn-clear"><svg viewBox="0 0 24 24"><path d="M3 9c3-3 6 3 9 0s6-3 9 0"/><path d="M3 15c3-3 6 3 9 0s6-3 9 0"/></svg>ならす</button>
+    <button class="rail-btn" id="btn-tilt"><svg viewBox="0 0 24 24"><path d="M3 16 9 7h12l-5 9z"/><path d="M3 16v2h13v-2"/></svg>傾ける</button>
+    <div class="rail-gap"></div>
+    <button class="rail-btn primary" id="btn-save"><svg viewBox="0 0 24 24"><path d="M12 4v11"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/></svg>保存</button>
+    <button class="rail-btn" id="btn-list"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg>一覧</button>
+    <button class="rail-btn" id="btn-settings"><svg viewBox="0 0 24 24"><path d="M4 8h9M18 8h2M4 16h2M11 16h9"/><circle cx="15.5" cy="8" r="2.5"/><circle cx="8.5" cy="16" r="2.5"/></svg>設定</button>
+  </nav>
+</div>
+
+<!-- 起動時：加速度センサーの許可（iPadのみ） -->
+<div class="sheet" id="start-sheet" hidden>
+  <div class="panel" style="width:min(460px,100%)">
+    <div class="panel-head"><h2>かたちで表現</h2></div>
+    <div class="panel-body">
+      <p class="note">叩いた強さを形に反映するため、iPad本体の揺れを使います。次に出る確認で「許可」を押してください。許可しなくても使えます。</p>
+      <div class="row end"><button class="btn primary" id="btn-start">はじめる</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- 保存：名前をつける -->
+<div class="sheet" id="save-sheet" hidden>
+  <div class="panel">
+    <div class="panel-head"><h2>保存する</h2><button class="x-btn" data-close aria-label="閉じる">×</button></div>
+    <div class="panel-body">
+      <div class="pair">
+        <figure><img id="save-relief" alt="凹凸の画像"><figcaption>凹凸</figcaption></figure>
+        <figure><img id="save-trace" alt="軌跡の画像"><figcaption>軌跡</figcaption></figure>
+      </div>
+      <label class="field">名前(空欄でも保存できます)
+        <input type="text" id="save-name" maxlength="60" autocomplete="off" autocapitalize="off" spellcheck="false">
+      </label>
+      <div class="row end"><button class="btn primary" id="btn-save-do">保存する</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- 保存した形：見る・書き出す -->
+<div class="sheet" id="work-sheet" hidden>
+  <div class="panel">
+    <div class="panel-head"><h2 id="work-title"></h2><button class="x-btn" data-close aria-label="閉じる">×</button></div>
+    <div class="panel-body">
+      <p class="note" id="work-sub"></p>
+      <div class="pair">
+        <figure><img id="work-relief" alt="凹凸の画像"><figcaption>凹凸</figcaption></figure>
+        <figure><img id="work-trace" alt="軌跡の画像"><figcaption>軌跡</figcaption></figure>
+      </div>
+      <div class="row"><button class="btn" id="work-tilt">傾けて見る</button></div>
+      <div class="sub">ファイルに書き出す</div>
+      <div class="row">
+        <button class="btn primary" id="out-zip">4つまとめて(ZIP)</button>
+        <button class="btn" id="out-relief">凹凸 PNG</button>
+        <button class="btn" id="out-trace">軌跡 PNG</button>
+        <button class="btn" id="out-json">データ JSON</button>
+        <button class="btn" id="out-stl">3Dプリント STL</button>
+      </div>
+      <div class="sub" id="work-next-head"></div>
+      <div class="row">
+        <button class="btn" id="work-new">新しい面で作る</button>
+        <button class="btn danger" id="work-del">この形を削除</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 一覧 -->
+<div class="sheet" id="list-sheet" hidden>
+  <div class="panel" style="width:min(900px,100%);height:100%">
+    <div class="panel-head"><h2>保存した形</h2><button class="x-btn" data-close aria-label="閉じる">×</button></div>
+    <div class="panel-body"><p class="note" id="list-empty" hidden>まだ保存した形はありません。</p><div id="list-grid"></div></div>
+  </div>
+</div>
+
+<!-- 傾けて見る -->
+<div class="sheet" id="tilt-sheet" hidden>
+  <canvas id="tilt-canvas"></canvas>
+  <button class="btn" id="tilt-close">閉じる</button>
+  <div id="tilt-tip">指で動かすと向きが変わります(凹凸は2倍に強調)</div>
+</div>
+
+<!-- 設定 -->
+<div class="sheet" id="settings-sheet" hidden>
+  <div class="panel" style="width:min(520px,100%)">
+    <div class="panel-head"><h2>設定</h2><button class="x-btn" data-close aria-label="閉じる">×</button></div>
+    <div class="panel-body">
+      <p class="note" id="motion-status"></p>
+      <div class="set-row"><span>叩く強さの感度</span><output id="motion-out"></output></div>
+      <input type="range" id="motion-range" min="0.05" max="2" step="0.01" aria-label="いっぱいに叩いたときの揺れの大きさ">
+      <p class="note">数字は「いちばん強く叩いたとみなす揺れ(m/s²)」です。小さいほど軽く叩いても深く沈みます。</p>
+      <label class="switch"><input type="checkbox" id="meter-toggle">面の左上に計測値を出す</label>
+    </div>
+  </div>
+</div>
+
+<div id="busy" hidden><span id="busy-text"></span></div>
+<div id="toast" role="status"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   かたちで表現
+   構成：砂の面（SAND）／指の入力→痕への変換（CONTACT）／センサー（MOTION）
+         記録（LOG）／書き出し（PNG・JSON・STL・ZIP）／傾き表示（TILT）／画面（UI）
+   将来、感圧シートやピエゾに替えるときは pointerToSample() を差し替え、
+   Contact の begin/move/end に同じ形のサンプルを渡す。
+   ===================================================================== */
+const $ = s => document.querySelector(s);
+const clamp = (v, a = 0, b = 1) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+
+/* ---------- SAND：1枚の高さの面。単位は「マス」。1マス=印刷時0.1mm ---------- */
+const W = 1280, H = 960, TILE = 32, TW = W / TILE, TH = H / TILE;
+const K = W / 1024;                       // 調整時の基準解像度からの倍率
+const TALUS = 0.72;                       // 崩れずに保てる傾き（砂の安息角に近い値）
+const field = new Float32Array(W * H);    // 現在の高さ
+const settled = new Float32Array(W * H);  // 直前の1手が終わった時点の高さ（戻す用）
+const shadeFlag = new Uint8Array(TW * TH), relaxFlag = new Uint8Array(TW * TH), touched = new Uint8Array(TW * TH);
+const grain = new Float32Array(W * H);
+for (let i = 0; i < grain.length; i++) grain[i] = (Math.random() + Math.random() - 1) * .016;
+
+function markCells(x0, y0, x1, y1) {
+  const a = Math.max(0, (x0 - 2) / TILE | 0), b = Math.min(TW - 1, Math.max(0, x1 + 2) / TILE | 0);
+  const c = Math.max(0, (y0 - 2) / TILE | 0), d = Math.min(TH - 1, Math.max(0, y1 + 2) / TILE | 0);
+  for (let ty = c; ty <= d; ty++) for (let tx = a; tx <= b; tx++) {
+    const t = ty * TW + tx; shadeFlag[t] = 1; relaxFlag[t] = 1; touched[t] = 1;
+  }
+}
+
+const RING_N = 12, RING_C = [], RING_S = [];
+for (let i = 0; i < RING_N; i++) { RING_C.push(Math.cos(i / RING_N * 6.2832)); RING_S.push(Math.sin(i / RING_N * 6.2832)); }
+function ringLevel(x, y, r) {
+  let s = 0, n = 0;
+  for (let i = 0; i < RING_N; i++) {
+    const sx = Math.round(x + RING_C[i] * r), sy = Math.round(y + RING_S[i] * r);
+    if (sx >= 0 && sy >= 0 && sx < W && sy < H) { s += field[sy * W + sx]; n++; }
+  }
+  return n ? s / n : 0;
+}
+
+/* 押す：丸い範囲の砂を周囲の面より depth だけ下げ、どかした砂を外側（進行方向寄り）に積む */
+const weightBuf = new Float32Array(400 * 400);
+function press(x, y, r, depth, dirX = 0, dirY = 0, ref = ringLevel(x, y, Math.max(1.3, r) * 1.3)) {
+  r = Math.max(1.3, r);
+  const x0 = Math.max(0, Math.floor(x - r)), x1 = Math.min(W - 1, Math.ceil(x + r));
+  const y0 = Math.max(0, Math.floor(y - r)), y1 = Math.min(H - 1, Math.ceil(y + r));
+  const ir2 = 1 / (r * r);
+  let moved = 0;
+  for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) {
+    const dx = xx - x, dy = yy - y, rr = (dx * dx + dy * dy) * ir2;
+    if (rr >= 1) continue;
+    const target = ref - depth * (1 - rr * rr), i = yy * W + xx;
+    if (field[i] > target) { const t = (field[i] - target) * .65; field[i] -= t; moved += t; }
+  }
+  const R = Math.min(198, r * 2 + 2);
+  const ox0 = Math.max(0, Math.floor(x - R)), ox1 = Math.min(W - 1, Math.ceil(x + R));
+  const oy0 = Math.max(0, Math.floor(y - R)), oy1 = Math.min(H - 1, Math.ceil(y + R));
+  if (moved > 1e-3) {
+    const bw = ox1 - ox0 + 1, ir = 1 / r;
+    let sum = 0;
+    for (let yy = oy0; yy <= oy1; yy++) for (let xx = ox0; xx <= ox1; xx++) {
+      const dx = xx - x, dy = yy - y, d = Math.sqrt(dx * dx + dy * dy), rho = d * ir;
+      let w = 0;
+      if (rho > .9) {
+        const q = (rho - 1.32) / .3;
+        w = Math.exp(-q * q);
+        if ((dirX || dirY) && d > 0) w *= 1 + .85 * (dx * dirX + dy * dirY) / d;
+      }
+      weightBuf[(yy - oy0) * bw + xx - ox0] = w; sum += w;
+    }
+    if (sum > 0) {
+      const k = moved / sum;
+      for (let yy = oy0; yy <= oy1; yy++) for (let xx = ox0; xx <= ox1; xx++) {
+        field[yy * W + xx] += weightBuf[(yy - oy0) * bw + xx - ox0] * k;
+      }
+    }
+  }
+  markCells(ox0, oy0, ox1, oy1);
+}
+/* 飛んだ粒：小さな盛り上がりを落とす */
+function bump(x, y, r, amount) {
+  const x0 = Math.max(0, Math.floor(x - r)), x1 = Math.min(W - 1, Math.ceil(x + r));
+  const y0 = Math.max(0, Math.floor(y - r)), y1 = Math.min(H - 1, Math.ceil(y + r));
+  if (x0 > x1 || y0 > y1) return;
+  for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) {
+    const dx = xx - x, dy = yy - y, q = 1 - (dx * dx + dy * dy) / (r * r);
+    if (q > 0) field[yy * W + xx] += amount * q;
+  }
+  markCells(x0, y0, x1, y1);
+}
+/* 急な斜面を崩す：隣り合うマスの差が TALUS を超えた分だけ砂を流す */
+function relaxTile(t) {
+  const tx = t % TW, ty = (t / TW) | 0;
+  const x0 = tx * TILE, x1 = Math.min(W - 2, (tx + 1) * TILE - 1);   // 右と下の隣だけ見る（境界を2回崩さない）
+  const y0 = ty * TILE, y1 = Math.min(H - 2, (ty + 1) * TILE - 1);
+  let moved = 0;
+  for (let y = y0; y <= y1; y++) {
+    let i = y * W + x0;
+    for (let x = x0; x <= x1; x++, i++) {
+      let d = field[i] - field[i + 1];
+      if (d > TALUS) { const m = (d - TALUS) * .22; field[i] -= m; field[i + 1] += m; moved += m; }
+      else if (d < -TALUS) { const m = (-d - TALUS) * .22; field[i] += m; field[i + 1] -= m; moved += m; }
+      d = field[i] - field[i + W];
+      if (d > TALUS) { const m = (d - TALUS) * .22; field[i] -= m; field[i + W] += m; moved += m; }
+      else if (d < -TALUS) { const m = (-d - TALUS) * .22; field[i] += m; field[i + W] -= m; moved += m; }
+    }
+  }
+  relaxFlag[t] = 0;
+  if (moved > 0) {
+    // 砂はタイルの境界を越えて流れるので、周囲も「変わった」と記録する（戻す・陰影のため）
+    for (let ny = Math.max(0, ty - 1); ny <= Math.min(TH - 1, ty + 1); ny++) {
+      for (let nx = Math.max(0, tx - 1); nx <= Math.min(TW - 1, tx + 1); nx++) {
+        const n = ny * TW + nx; shadeFlag[n] = 1; touched[n] = 1;
+        if (moved > .02) relaxFlag[n] = 1;   // 崩れが続いている間は、自分と周囲をもう一度見る
+      }
+    }
+  }
+}
+function relaxAll(limit = 260) {
+  let n = 0;
+  for (let t = 0; t < relaxFlag.length && n < limit; t++) if (relaxFlag[t]) { relaxTile(t); n++; }
+  return n;
+}
+function settleField() { for (let i = 0; i < 60; i++) if (!relaxAll(TW * TH)) break; relaxFlag.fill(0); }
+
+/* 陰影：左上からの光。単色で、凹凸だけが見える */
+const surfaceCv = $('#surface');
+const sctx = surfaceCv.getContext('2d', { alpha: false });
+const tileImg = sctx.createImageData(TILE, TILE);
+const L = (() => { const x = -.55, y = -.62, z = .56, n = Math.hypot(x, y, z); return { x: x / n, y: y / n, z: z / n }; })();
+function shadeCell(i, x, y, arr) {
+  const hx = ((x < W - 1 ? arr[i + 1] : arr[i]) - (x > 0 ? arr[i - 1] : arr[i])) * .5;
+  const hy = ((y < H - 1 ? arr[i + W] : arr[i]) - (y > 0 ? arr[i - W] : arr[i])) * .5;
+  const lam = (-hx * L.x - hy * L.y + L.z) / Math.sqrt(1 + hx * hx + hy * hy);
+  const v = .92 + (lam - L.z) * .92 + clamp(arr[i] * .007, -.2, .05) + grain[i];
+  return v;
+}
+function shadeTile(t) {
+  const tx = (t % TW) * TILE, ty = ((t / TW) | 0) * TILE, d = tileImg.data;
+  let p = 0;
+  for (let y = ty; y < ty + TILE; y++) for (let x = tx; x < tx + TILE; x++, p += 4) {
+    const v = shadeCell(y * W + x, x, y, field);
+    d[p] = 255 * v; d[p + 1] = 251 * v; d[p + 2] = 242 * v; d[p + 3] = 255;   // Uint8Clampedなので自動で範囲内に収まる
+  }
+  sctx.putImageData(tileImg, tx, ty);
+}
+function shadeDirty() { for (let t = 0; t < shadeFlag.length; t++) if (shadeFlag[t]) { shadeFlag[t] = 0; shadeTile(t); } }
+
+/* ---------- MOTION：叩いたときの本体の揺れ ---------- */
+const MOTION_KEY = 'katachi-motion-max', METER_KEY = 'katachi-meter';
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (_) {} },
+};
+const motion = { state: 'unavailable', max: 0.3, floor: .02, buf: [], last: -1e9, prev: null };
+{ const v = parseFloat(store.get(MOTION_KEY)); if (v > 0 && v <= 2) motion.max = v; }
+function onMotion(e) {
+  const a = e.acceleration, g = e.accelerationIncludingGravity;
+  const acc = a && a.x != null ? Math.hypot(a.x, a.y, a.z) : 0;
+  let jerk = 0;
+  if (g && g.x != null) {
+    if (motion.prev) jerk = Math.hypot(g.x - motion.prev[0], g.y - motion.prev[1], g.z - motion.prev[2]);
+    motion.prev = [g.x, g.y, g.z];
+  }
+  const t = performance.now();
+  motion.buf.push(t, Math.max(acc, jerk)); motion.last = t;
+  while (motion.buf.length && t - motion.buf[0] > 1200) motion.buf.splice(0, 2);
+}
+const motionLive = () => performance.now() - motion.last < 700;
+function motionPeak(t0, t1) {
+  let p = 0;
+  for (let i = 0; i < motion.buf.length; i += 2) if (motion.buf[i] >= t0 && motion.buf[i] <= t1 && motion.buf[i + 1] > p) p = motion.buf[i + 1];
+  return p;
+}
+async function enableMotion() {
+  if (typeof DeviceMotionEvent === 'undefined') { motion.state = 'unavailable'; return; }
+  try {
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+      const r = await DeviceMotionEvent.requestPermission();
+      if (r !== 'granted') { motion.state = 'denied'; return; }
+    }
+    window.addEventListener('devicemotion', onMotion);
+    motion.state = 'granted';
+  } catch (_) { motion.state = 'denied'; }
+}
+
+/* ---------- LOG：指の軌跡の記録 ---------- */
+const SAMPLE_FIELDS = ['t', 'x', 'y', 'width', 'height', 'pressure', 'speed', 'areaNorm', 'radius', 'depth', 'motion'];
+let session = newSession();
+function newSession() { return { start: performance.now(), startedAt: new Date().toISOString(), groups: [], nextId: 1 }; }
+const r2 = v => Math.round(v * 100) / 100;
+
+/* ---------- CONTACT：指の動きを、判別せず連続的に痕へ変える ----------
+   接触幅      … 大きいほど広く深い
+   押し続ける  … 沈んでいく
+   速さ        … 速いほど細く浅い／速いと周囲に粒が飛ぶ
+   本体の揺れ  … 触れた瞬間の揺れの分だけ穴があき、強いと粒が飛ぶ
+   離す瞬間の速さ … 進行方向に砂が飛ぶ（はじく） */
+const contacts = new Map();
+let openGroup = null;
+let pendingGrains = [];
+
+function sizeToArea(s) {
+  if (s.pointerType === 'pen') return clamp(s.pressure);
+  if (s.pointerType === 'mouse' || !(s.width > 1 || s.height > 1)) return .3;
+  return clamp((Math.max(s.width, s.height) - 60) / 65);
+}
+function shape(c) {
+  const sp = c.v / (c.v + 1.2), dwell = 1 - Math.exp(-c.press / 900), a = c.a;
+  return {
+    r: lerp(5, 34, a) * K * (1 - .55 * sp) * (1 + .22 * dwell),
+    d: ((1.2 + 3.6 * a) * (1 - .78 * sp) + (6 + 10 * a) * dwell) * K,
+    sp,
+  };
+}
+function logSample(c, s, sh) {
+  const m = motionLive() ? motionPeak(performance.now() - 40, performance.now()) : 0;
+  c.stroke.samples.push([r2(s.t - session.start), r2(s.x), r2(s.y), r2(s.width), r2(s.height), r2(s.pressure),
+    r2(c.v), r2(c.a), r2(sh.r), r2(sh.d), Math.round(m * 1000) / 1000]);
+  c.lastLog = s.t;
+}
+function ensureGroup(t) {
+  if (!openGroup) {
+    openGroup = { id: session.nextId++, kind: 'touch', t0: r2(t - session.start), undone: false, strokes: [] };
+    session.groups.push(openGroup);
+  }
+  return openGroup;
+}
+function spawnGrains(x, y, ang, spread, reach, count, now, size = 1) {
+  for (let i = 0; i < count; i++) {
+    const a = ang + (Math.random() - .5) * spread, q = Math.random();
+    const dist = reach * (.25 + .75 * Math.sqrt(q));
+    pendingGrains.push({
+      at: now + dist / 1.7, x: x + Math.cos(a) * dist, y: y + Math.sin(a) * dist,
+      r: (1.4 + Math.random() * 2.2) * K * size, amt: (.5 + Math.random() * 1.1) * size,
+    });
+  }
+}
+const Contact = {
+  begin(s) {
+    hideHint();
+    const now = performance.now(), g = ensureGroup(s.t);
+    const stroke = { id: s.id, pointerType: s.pointerType, impact: null, flick: null, samples: [] };
+    g.strokes.push(stroke);
+    const c = {
+      id: s.id, x: s.x, y: s.y, t0: s.t, lt: s.t, now0: now, lf: now, a: sizeToArea(s), v: 0, press: 0, dist: 0, moved: 0,
+      stroke, last: s, recent: [{ t: s.t, x: s.x, y: s.y }], struck: false, lastLog: s.t,
+    };
+    contacts.set(s.id, c);
+    const sh = shape(c);
+    press(s.x, s.y, sh.r * .8, sh.d * .5 + .4);
+    logSample(c, s, sh);
+    meter(c, s, sh);
+    return c;
+  },
+  move(s) {
+    const c = contacts.get(s.id); if (!c) return;
+    const dt = Math.max(1, s.t - c.lt), dx = s.x - c.x, dy = s.y - c.y, dist = Math.hypot(dx, dy);
+    c.a = lerp(c.a, sizeToArea(s), .25);
+    const before = shape(c);
+    c.v = lerp(c.v, dist / dt, .4);
+    if (c.v > .08) c.press = Math.max(0, c.press - dt * 2.2);
+    const sh = shape(c);
+    c.recent.push({ t: s.t, x: s.x, y: s.y });
+    while (c.recent.length > 2 && s.t - c.recent[0].t > 60) c.recent.shift();
+    if (dist > .4) {
+      const dirX = dx / dist, dirY = dy / dist, n = Math.max(1, Math.ceil(dist / Math.max(1, sh.r * .14)));
+      for (let i = 1; i <= n; i++) {
+        const q = i / n, rough = 1 + (Math.random() - .5) * sh.sp * .9;
+        const px = c.x + dx * q, py = c.y + dy * q, pr = lerp(before.r, sh.r, q);
+        // 面の高さの基準をなめらかに追う（溝の底に段がつかないように）
+        c.ref = c.ref == null ? ringLevel(px, py, pr * 1.3) : lerp(c.ref, ringLevel(px, py, pr * 1.3), .06);
+        press(px, py, pr, lerp(before.d, sh.d, q) * rough, dirX, dirY, c.ref);
+      }
+      // 速くひっかくと、線の脇に粒が飛ぶ
+      const spray = clamp((c.v - 1.6) / 3);
+      if (spray > 0 && Math.random() < spray * .8) {
+        spawnGrains(s.x, s.y, Math.atan2(dirY, dirX) + (Math.random() < .5 ? 1 : -1) * 1.1, .9, (10 + c.v * 8) * K, 1 + (spray * 3 | 0), performance.now(), .7);
+      }
+      c.dist += dist;
+    }
+    c.x = s.x; c.y = s.y; c.lt = s.t; c.last = s;
+    logSample(c, s, sh);
+    meter(c, s, sh);
+  },
+  end(s) {
+    const c = contacts.get(s.id); if (!c) return;
+    Contact.move(s);
+    const now = performance.now(), dur = s.t - c.t0;
+    if (!c.struck && !motionLive() && dur < 200) {
+      // 揺れが取れないときは、短い接触を「叩いた」とみなし接触幅から強さを推定する
+      strike(c, (.18 + .5 * c.a * clamp(1.2 - dur / 200)) * clamp(1 - c.dist / (30 * K)));
+    }
+    // はじく：離す直前の速さで砂を飛ばす
+    const first = c.recent[0], lastP = c.recent[c.recent.length - 1], span = Math.max(1, lastP.t - first.t);
+    const dx = lastP.x - first.x, dy = lastP.y - first.y, relV = Math.hypot(dx, dy) / span;
+    const amt = clamp((relV - 1) / 3.2);
+    if (amt > 0) {
+      const ang = Math.atan2(dy, dx);
+      press(s.x, s.y, lerp(3, 9, amt) * K, 1 + 3 * amt, dx / Math.hypot(dx, dy), dy / Math.hypot(dx, dy));
+      spawnGrains(s.x, s.y, ang, .55 - .25 * amt, (30 + relV * 62) * K, Math.round(10 + 70 * amt), now);
+      c.stroke.flick = { speed: r2(relV), amount: r2(amt) };
+    }
+    contacts.delete(s.id);
+  },
+};
+/* 触れた瞬間の衝撃の穴 */
+function strike(c, I) {
+  c.struck = true;
+  c.stroke.impact = r2(I);
+  if (I <= .02) return;
+  const a = c.a, s = c.stroke.samples[0], x = s[1], y = s[2];
+  const r = (lerp(5, 26, a) + 18 * I) * K, d = (1.5 + 20 * I) * K;
+  for (let i = 0; i < 3; i++) press(x, y, r, d);
+  const spray = clamp((I - .4) / .6);
+  if (spray > 0) spawnGrains(x, y, 0, 6.28, r * 1.6 + 70 * I * K, Math.round(spray * 60), performance.now(), .85);
+}
+
+/* 毎フレーム：押し続ける沈み込み・衝撃・粒の着地・崩れ・陰影 */
+function tick(now) {
+  for (const c of contacts.values()) {
+    const dt = Math.min(50, now - c.lf); c.lf = now;
+    if (!c.struck && now - c.now0 >= 70 && motionLive()) {
+      const m = motionPeak(c.now0 - 40, c.now0 + 70);
+      strike(c, clamp((m - motion.floor) / motion.max));
+    }
+    if (now - (c.lastMoveNow || c.now0) > 30 && c.last.t === c.lt) {
+      c.v *= .8;
+      if (c.v < .08) {
+        c.press += dt; c.ref = null;
+        const sh = shape(c);
+        press(c.x, c.y, sh.r, sh.d);
+        if (now - (c.lastDwellLog || 0) > 100) {
+          c.lastDwellLog = now;
+          logSample(c, { ...c.last, t: now - c.now0 + c.t0 }, sh);
+        }
+        meter(c, c.last, sh);
+      }
+    }
+  }
+  if (pendingGrains.length) {
+    const rest = [];
+    for (const g of pendingGrains) { if (g.at <= now) bump(g.x, g.y, g.r, g.amt); else rest.push(g); }
+    pendingGrains = rest;
+  }
+  relaxAll();
+  shadeDirty();
+  if (openGroup && !contacts.size && !pendingGrains.length) finishGroup();
+  requestAnimationFrame(tick);
+}
+
+/* ---------- 戻す：1手ごとに、変わったタイルだけ保存する ---------- */
+const undoStack = [];
+let undoBytes = 0;
+const UNDO_MAX_BYTES = 96 * 1024 * 1024;
+function commitUndo(group) {
+  const tiles = [];
+  for (let t = 0; t < touched.length; t++) if (touched[t]) {
+    const data = new Float32Array(TILE * TILE), tx = (t % TW) * TILE, ty = ((t / TW) | 0) * TILE;
+    for (let row = 0; row < TILE; row++) {
+      const start = (ty + row) * W + tx;
+      data.set(settled.subarray(start, start + TILE), row * TILE);
+      settled.set(field.subarray(start, start + TILE), start);
+    }
+    tiles.push([t, data]);
+    undoBytes += data.byteLength;
+  }
+  touched.fill(0);
+  undoStack.push({ tiles, group });
+  while (undoBytes > UNDO_MAX_BYTES && undoStack.length > 1) {
+    for (const [, d] of undoStack.shift().tiles) undoBytes -= d.byteLength;
+  }
+  updateRail();
+}
+function finishGroup() {
+  if (!openGroup) return;
+  // 飛んでいる粒はすぐ落とし、崩れを最後まで進めてから1手として確定する
+  for (const g of pendingGrains) bump(g.x, g.y, g.r, g.amt);
+  pendingGrains = [];
+  settleField();
+  commitUndo(openGroup);
+  openGroup = null;
+}
+function endAllContacts() {
+  for (const c of [...contacts.values()]) contacts.delete(c.id);
+  finishGroup();
+}
+function undo() {
+  endAllContacts();
+  const e = undoStack.pop(); if (!e) return;
+  for (const [t, data] of e.tiles) {
+    const tx = (t % TW) * TILE, ty = ((t / TW) | 0) * TILE;
+    undoBytes -= data.byteLength;
+    for (let row = 0; row < TILE; row++) {
+      const start = (ty + row) * W + tx, seg = data.subarray(row * TILE, row * TILE + TILE);
+      field.set(seg, start); settled.set(seg, start);
+    }
+    markCells(tx, ty, tx + TILE - 1, ty + TILE - 1);
+  }
+  relaxFlag.fill(0); touched.fill(0);
+  e.group.undone = true;
+  updateRail();
+}
+function clearField() {
+  endAllContacts();
+  field.fill(0);
+  touched.fill(1); shadeFlag.fill(1); relaxFlag.fill(0);
+  const g = { id: session.nextId++, kind: 'clear', t0: r2(performance.now() - session.start), undone: false, strokes: [] };
+  session.groups.push(g);
+  commitUndo(g);
+}
+const hasWork = () => field.some(v => v !== 0);
+
+/* ---------- 入力：ポインタ→サンプル（ここを差し替えると別のセンサーで動く） ---------- */
+let rect = null;
+const evTime = e => (Math.abs(e.timeStamp - performance.now()) < 5000 ? e.timeStamp : performance.now());
+function pointerToSample(e) {
+  return {
+    id: e.pointerId, t: evTime(e), pointerType: e.pointerType,
+    x: clamp((e.clientX - rect.left) / rect.width) * W, y: clamp((e.clientY - rect.top) / rect.height) * H,
+    width: e.width || 0, height: e.height || 0, pressure: e.pressure || 0,
+  };
+}
+surfaceCv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  if (openGroup === null && pendingGrains.length) finishGroup();
+  rect = surfaceCv.getBoundingClientRect();
+  try { surfaceCv.setPointerCapture(e.pointerId); } catch (_) {}
+  Contact.begin(pointerToSample(e));
+});
+surfaceCv.addEventListener('pointermove', e => {
+  if (!contacts.has(e.pointerId)) return;
+  const list = e.getCoalescedEvents ? e.getCoalescedEvents() : null;
+  if (list && list.length) for (const ev of list) Contact.move({ ...pointerToSample(ev), t: evTime(ev) });
+  else Contact.move(pointerToSample(e));
+  contacts.get(e.pointerId).lastMoveNow = performance.now();
+});
+const endPtr = e => { if (contacts.has(e.pointerId)) Contact.end(pointerToSample(e)); };
+surfaceCv.addEventListener('pointerup', endPtr);
+surfaceCv.addEventListener('pointercancel', endPtr);
+// iPadの長押し・ダブルタップ拡大・スクロールを止める（ポインタイベントは止まらない）
+surfaceCv.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+surfaceCv.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('touchmove', e => { if (!e.target.closest('.panel-body')) e.preventDefault(); }, { passive: false });
+document.addEventListener('gesturestart', e => e.preventDefault());
+
+/* ---------- 書き出し ---------- */
+const canvasBlob = cv => new Promise(res => cv.toBlob(res, 'image/png'));
+function renderTrace(groups) {
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+  c.fillStyle = '#fffdf8'; c.fillRect(0, 0, W, H);
+  c.lineCap = 'round'; c.lineJoin = 'round'; c.strokeStyle = c.fillStyle = '#2f2a24';
+  let start = 0;
+  groups.forEach((g, i) => { if (g.kind === 'clear' && !g.undone) start = i + 1; });
+  const [ix, iy, ir, id] = ['x', 'y', 'radius', 'depth'].map(n => SAMPLE_FIELDS.indexOf(n));
+  for (let gi = start; gi < groups.length; gi++) {
+    if (groups[gi].undone || groups[gi].kind !== 'touch') continue;
+    for (const st of groups[gi].strokes) {
+      const s = st.samples;
+      if (!s.length) continue;
+      const alpha = d => clamp(.28 + d / 12, .28, .95);
+      c.globalAlpha = alpha(s[0][id]);
+      c.beginPath(); c.arc(s[0][ix], s[0][iy], Math.max(1.2, s[0][ir] * .5), 0, 6.2832); c.fill();
+      for (let i = 1; i < s.length; i++) {
+        c.globalAlpha = alpha(s[i][id]);
+        c.lineWidth = Math.max(1.2, s[i][ir]);
+        c.beginPath(); c.moveTo(s[i - 1][ix], s[i - 1][iy]); c.lineTo(s[i][ix], s[i][iy]); c.stroke();
+      }
+    }
+  }
+  c.globalAlpha = 1;
+  return cv;
+}
+function encodeHeight(arr) {
+  const q = new Int16Array(arr.length);
+  for (let i = 0; i < arr.length; i++) q[i] = clamp(Math.round(arr[i] * 100), -32768, 32767);
+  const bytes = new Uint8Array(q.buffer);
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 0x8000 - 0x8000 % 3) out += btoa(String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000 - 0x8000 % 3)));
+  return out;
+}
+function decodeHeight(hm) {
+  const bin = atob(hm.data), bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const q = new Int16Array(bytes.buffer), arr = new Float32Array(q.length);
+  for (let i = 0; i < q.length; i++) arr[i] = q[i] / hm.scale;
+  return arr;
+}
+function buildData(name, savedAt) {
+  return JSON.stringify({
+    app: 'katachi-de-hyougen', version: 1, name, savedAt, sessionStartedAt: session.startedAt,
+    surface: { width: W, height: H, heightUnit: 'cell', printedCellMm: .1 },
+    device: { userAgent: navigator.userAgent, screen: [screen.width, screen.height], dpr: devicePixelRatio, motion: motion.state, touchPoints: navigator.maxTouchPoints },
+    settings: { motionMax: motion.max },
+    sampleFields: SAMPLE_FIELDS,
+    groups: session.groups,
+    heightmap: { width: W, height: H, encoding: 'int16le-base64', scale: 100, data: encodeHeight(field) },
+  });
+}
+/* STL：128×96mm、0.4mm格子。高さ2倍、最も低い所の下に3mmの土台。閉じた立体（水密） */
+const STL = { step: 4, cellMm: .1, zScale: 2, baseMm: 3 };
+function buildSTL(arr) {
+  const gx = Math.floor((W - 1) / STL.step) + 1, gy = Math.floor((H - 1) / STL.step) + 1, s = STL.step;
+  const z = new Float32Array(gx * gy);
+  let min = Infinity;
+  for (let j = 0; j < gy; j++) for (let i = 0; i < gx; i++) {
+    let sum = 0, n = 0;
+    for (let y = j * s; y < Math.min(H, (j + 1) * s); y++) for (let x = i * s; x < Math.min(W, (i + 1) * s); x++) { sum += arr[y * W + x]; n++; }
+    const v = sum / n; z[j * gx + i] = v; if (v < min) min = v;
+  }
+  const mm = s * STL.cellMm;
+  const px = i => i * mm, py = j => (gy - 1 - j) * mm, pz = (i, j) => (z[j * gx + i] - min) * STL.cellMm * STL.zScale + STL.baseMm;
+  const perim = [];
+  for (let i = 0; i < gx - 1; i++) perim.push([i, gy - 1]);
+  for (let j = gy - 1; j > 0; j--) perim.push([gx - 1, j]);
+  for (let i = gx - 1; i > 0; i--) perim.push([i, 0]);
+  for (let j = 0; j < gy - 1; j++) perim.push([0, j]);
+  const count = 2 * (gx - 1) * (gy - 1) + 3 * perim.length;
+  const buf = new ArrayBuffer(84 + count * 50), dv = new DataView(buf);
+  const head = 'katachi-de-hyougen STL';
+  for (let i = 0; i < head.length; i++) dv.setUint8(i, head.charCodeAt(i));
+  dv.setUint32(80, count, true);
+  let o = 84;
+  const tri = (a, b, c) => {
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+    for (const v of [nx, ny, nz, a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]]) { dv.setFloat32(o, v, true); o += 4; }
+    dv.setUint16(o, 0, true); o += 2;
+  };
+  const top = (i, j) => [px(i), py(j), pz(i, j)];
+  for (let j = 0; j < gy - 1; j++) for (let i = 0; i < gx - 1; i++) {
+    const A = top(i, j), B = top(i + 1, j), C = top(i, j + 1), D = top(i + 1, j + 1);
+    tri(A, C, B); tri(B, C, D);
+  }
+  const center = [px(gx - 1) / 2, py(0) / 2, 0];
+  perim.forEach((p, n) => {
+    const q = perim[(n + 1) % perim.length];
+    const Pt = top(p[0], p[1]), Qt = top(q[0], q[1]);
+    const Pb = [Pt[0], Pt[1], 0], Qb = [Qt[0], Qt[1], 0];
+    tri(Pb, Qb, Qt); tri(Pb, Qt, Pt);
+    tri(center, Qb, Pb);
+  });
+  return new Blob([buf], { type: 'model/stl' });
+}
+/* ZIP（無圧縮）：外部ライブラリなし。4ファイルを1回の操作で渡すため */
+const CRC_TABLE = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+async function buildZip(files) {
+  const enc = new TextEncoder(), parts = [], central = [];
+  let offset = 0;
+  for (const f of files) {
+    const data = new Uint8Array(await f.blob.arrayBuffer()), name = enc.encode(f.name), crc = crc32(data);
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); // UTF-8名
+    lh.setUint32(14, crc, true); lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true); lh.setUint16(26, name.length, true);
+    parts.push(lh.buffer, name, data);
+    const cd = new DataView(new ArrayBuffer(46));
+    cd.setUint32(0, 0x02014b50, true); cd.setUint16(4, 20, true); cd.setUint16(6, 20, true); cd.setUint16(8, 0x0800, true);
+    cd.setUint32(16, crc, true); cd.setUint32(20, data.length, true); cd.setUint32(24, data.length, true); cd.setUint16(28, name.length, true);
+    cd.setUint32(42, offset, true);
+    central.push(cd.buffer, name);
+    offset += 30 + name.length + data.length;
+  }
+  const cdSize = central.reduce((s, p) => s + p.byteLength, 0);
+  const eo = new DataView(new ArrayBuffer(22));
+  eo.setUint32(0, 0x06054b50, true); eo.setUint16(8, files.length, true); eo.setUint16(10, files.length, true);
+  eo.setUint32(12, cdSize, true); eo.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, eo.buffer], { type: 'application/zip' });
+}
+const isIPad = /iPad|Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1;
+async function deliver(blob, name) {
+  if (isIPad && navigator.canShare) {
+    const file = new File([blob], name, { type: blob.type });
+    if (navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); return; }
+      catch (e) { if (e.name === 'AbortError') return; }
+    }
+  }
+  const a = document.createElement('a'), url = URL.createObjectURL(blob);
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+/* ---------- 端末内の保存（IndexedDB） ---------- */
+const DB = {
+  db: null,
+  open() {
+    if (this.db) return Promise.resolve(this.db);
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('katachi-de-hyougen', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('works', { keyPath: 'id' });
+      r.onsuccess = () => res(this.db = r.result);
+      r.onerror = () => rej(r.error);
+    });
+  },
+  async run(mode, fn) {
+    const db = await this.open();
+    return new Promise((res, rej) => {
+      const tx = db.transaction('works', mode), rq = fn(tx.objectStore('works'));
+      tx.oncomplete = () => res(rq && rq.result);
+      tx.onerror = tx.onabort = () => rej(tx.error);
+    });
+  },
+  put(w) { return this.run('readwrite', s => s.put(w)); },
+  all() { return this.run('readonly', s => s.getAll()); },
+  del(id) { return this.run('readwrite', s => s.delete(id)); },
+};
+
+/* ---------- TILT：傾けて見る（素のWebGL。外部読み込みなしで動かす） ---------- */
+const tilt = {
+  gl: null, prog: null, nIdx: 0, yaw: -.2, pitch: .9,
+  init() {
+    const cv = $('#tilt-canvas');
+    const gl = cv.getContext('webgl', { antialias: true });
+    if (!gl) return false;
+    this.gl = gl;
+    const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+    const p = gl.createProgram();
+    gl.attachShader(p, sh(gl.VERTEX_SHADER, `attribute vec2 uv; attribute float hgt; uniform mat4 m; varying vec2 vuv;
+      void main(){ vuv=uv; gl_Position=m*vec4((uv.x-.5)*2.,(0.5-uv.y)*1.5,hgt,1.); }`));
+    gl.attachShader(p, sh(gl.FRAGMENT_SHADER, `precision mediump float; uniform sampler2D tex; varying vec2 vuv;
+      void main(){ gl_FragColor=texture2D(tex,vuv); }`));
+    gl.linkProgram(p); gl.useProgram(p); this.prog = p;
+    this.gx = 256; this.gy = 192;
+    const uv = new Float32Array(this.gx * this.gy * 2), idx = new Uint16Array((this.gx - 1) * (this.gy - 1) * 6);
+    let k = 0;
+    for (let j = 0; j < this.gy; j++) for (let i = 0; i < this.gx; i++) { uv[k++] = i / (this.gx - 1); uv[k++] = j / (this.gy - 1); }
+    k = 0;
+    for (let j = 0; j < this.gy - 1; j++) for (let i = 0; i < this.gx - 1; i++) {
+      const a = j * this.gx + i, b = a + 1, c = a + this.gx, d = c + 1;
+      idx[k++] = a; idx[k++] = c; idx[k++] = b; idx[k++] = b; idx[k++] = c; idx[k++] = d;
+    }
+    this.nIdx = idx.length;
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ARRAY_BUFFER, uv, gl.STATIC_DRAW);
+    const a0 = gl.getAttribLocation(p, 'uv'); gl.enableVertexAttribArray(a0); gl.vertexAttribPointer(a0, 2, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+    this.hBuf = gl.createBuffer();
+    this.hLoc = gl.getAttribLocation(p, 'hgt');
+    this.mLoc = gl.getUniformLocation(p, 'm');
+    gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.enable(gl.DEPTH_TEST); gl.clearColor(.851, .827, .776, 1);
+    let drag = null;
+    cv.addEventListener('pointerdown', e => { drag = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointermove', e => {
+      if (!drag) return;
+      this.yaw += (e.clientX - drag[0]) * .007;
+      this.pitch = clamp(this.pitch + (e.clientY - drag[1]) * .006, 0, 1.45);
+      drag = [e.clientX, e.clientY]; this.draw();
+    });
+    const up = () => { drag = null; };
+    cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    return true;
+  },
+  /* arr：高さ、source：表面の絵（canvasかimage） */
+  show(arr, source) {
+    $('#tilt-sheet').hidden = false;
+    if (!this.gl && !this.init()) { $('#tilt-sheet').hidden = true; toast('この端末では傾き表示を使えません'); return; }
+    const gl = this.gl, hs = new Float32Array(this.gx * this.gy);
+    const sx = (W - 1) / (this.gx - 1), sy = (H - 1) / (this.gy - 1);
+    // 面の幅2.0=1280マスに合わせ、凹凸は2倍に強調
+    const zk = 2 / W * 2;
+    for (let j = 0; j < this.gy; j++) for (let i = 0; i < this.gx; i++) hs[j * this.gx + i] = arr[Math.round(j * sy) * W + Math.round(i * sx)] * zk;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.hBuf); gl.bufferData(gl.ARRAY_BUFFER, hs, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(this.hLoc); gl.vertexAttribPointer(this.hLoc, 1, gl.FLOAT, false, 0, 0);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    this.yaw = -.2; this.pitch = .9;
+    this.draw();
+  },
+  draw() {
+    const gl = this.gl, cv = gl.canvas, dpr = Math.min(2, devicePixelRatio || 1);
+    const cw = Math.round(cv.clientWidth * dpr), ch = Math.round(cv.clientHeight * dpr);
+    if (cv.width !== cw || cv.height !== ch) { cv.width = cw; cv.height = ch; }
+    gl.viewport(0, 0, cw, ch);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    const asp = cw / ch, f = 2.4, n = .1, fr = 20;
+    const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw), cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
+    const dist = Math.max(3.0, 3.0 * (1.34 / asp));
+    const rot = [cy, -sy, 0, sy * cp, cy * cp, sp, -sy * sp, -cy * sp, cp];   // 手前を下げて見下ろす（面内で回してから傾ける）
+    const m = new Float32Array(16);
+    const a = f / asp, b = f, c = (fr + n) / (n - fr), d = 2 * fr * n / (n - fr);
+    // 列優先：P·T(0,0,-dist)·R
+    for (let col = 0; col < 3; col++) {
+      const x = rot[col], y = rot[col + 3], z = rot[col + 6];
+      m[col * 4] = a * x; m[col * 4 + 1] = b * y; m[col * 4 + 2] = c * z; m[col * 4 + 3] = -z;
+    }
+    m[12] = 0; m[13] = 0; m[14] = c * -dist + d; m[15] = dist;
+    gl.uniformMatrix4fv(this.mLoc, false, m);
+    gl.drawElements(gl.TRIANGLES, this.nIdx, gl.UNSIGNED_SHORT, 0);
+  },
+};
+
+/* ---------- UI ---------- */
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 2600);
+}
+function busy(on, text = '') { $('#busy').hidden = !on; $('#busy-text').textContent = text; }
+const nextFrame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r)));
+function hideHint() { $('#hint').style.opacity = 0; }
+function updateRail() { $('#btn-undo').disabled = !undoStack.length; }
+function fitSurface() {
+  const st = $('#stage'), bw = st.clientWidth, bh = st.clientHeight;
+  const w = Math.floor(Math.min(bw, bh * 4 / 3)), box = $('#surface-box');
+  box.style.width = w + 'px'; box.style.height = Math.floor(w * 3 / 4) + 'px';
+  if (tilt.gl && !$('#tilt-sheet').hidden) tilt.draw();
+}
+addEventListener('resize', fitSurface);
+addEventListener('orientationchange', () => setTimeout(fitSurface, 200));
+
+let meterOn = store.get(METER_KEY) === '1';
+function meter(c, s, sh) {
+  if (!meterOn) return;
+  const live = motionLive();
+  $('#meter').textContent =
+    `接触幅  ${(+s.width).toFixed(1)} × ${(+s.height).toFixed(1)}\n面積値  ${c.a.toFixed(2)}\n速さ    ${c.v.toFixed(2)} マス/ms\n半径    ${sh.r.toFixed(1)}\n深さ    ${sh.d.toFixed(1)}\n` +
+    `揺れ    ${live ? motionPeak(performance.now() - 120, performance.now()).toFixed(3) : 'なし'}\n叩き    ${c.stroke.impact == null ? '-' : c.stroke.impact.toFixed(2)}`;
+}
+const stamp = d => { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; };
+const safeName = s => s.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').trim();
+const fileBase = w => (w.name ? safeName(w.name) + '_' : '') + stamp(new Date(w.createdAt));
+const urls = new Set();
+function blobUrl(b) { const u = URL.createObjectURL(b); urls.add(u); return u; }
+function revokeAll() { for (const u of urls) URL.revokeObjectURL(u); urls.clear(); }
+
+for (const b of document.querySelectorAll('[data-close]')) b.addEventListener('click', () => { b.closest('.sheet').hidden = true; });
+
+$('#btn-undo').addEventListener('click', undo);
+$('#btn-clear').addEventListener('click', clearField);
+$('#btn-tilt').addEventListener('click', () => { finishGroup(); shadeDirty(); tilt.show(field, surfaceCv); });
+$('#tilt-close').addEventListener('click', () => { $('#tilt-sheet').hidden = true; });
+
+/* 保存 */
+let draftBlobs = null;
+$('#btn-save').addEventListener('click', async () => {
+  endAllContacts(); relaxAll(TW * TH); shadeDirty();
+  if (!hasWork()) { toast('まだ形がありません'); return; }
+  draftBlobs = { relief: await canvasBlob(surfaceCv), trace: await canvasBlob(renderTrace(session.groups)) };
+  revokeAll();
+  $('#save-relief').src = blobUrl(draftBlobs.relief);
+  $('#save-trace').src = blobUrl(draftBlobs.trace);
+  $('#save-name').value = '';
+  $('#save-sheet').hidden = false;
+});
+$('#btn-save-do').addEventListener('click', async () => {
+  const name = $('#save-name').value.trim(), at = new Date();
+  $('#save-name').blur();
+  busy(true, '保存しています…'); await nextFrame();
+  try {
+    const json = buildData(name, at.toISOString());
+    const thumbCv = document.createElement('canvas'); thumbCv.width = 320; thumbCv.height = 240;
+    thumbCv.getContext('2d').drawImage(surfaceCv, 0, 0, 320, 240);
+    const work = {
+      id: at.getTime() + '-' + Math.random().toString(36).slice(2, 7), name, createdAt: at.toISOString(),
+      relief: draftBlobs.relief, trace: draftBlobs.trace, thumb: await canvasBlob(thumbCv),
+      data: new Blob([json], { type: 'application/json' }),
+    };
+    let stored = true;
+    try { await DB.put(work); } catch (_) { stored = false; }
+    $('#save-sheet').hidden = true;
+    openWork(work, { fresh: true });
+    toast(stored ? '保存しました。ファイルにも書き出せます' : '端末内に保存できませんでした。ファイルに書き出してください');
+  } catch (e) {
+    toast('保存に失敗しました:' + e.message);
+  } finally { busy(false); }
+});
+
+/* 保存した形を開く */
+let openedWork = null, freshOpen = false;
+function openWork(w, { fresh = false } = {}) {
+  openedWork = w; freshOpen = fresh;
+  $('#work-title').textContent = w.name || '名前なし';
+  $('#work-sub').textContent = new Date(w.createdAt).toLocaleString('ja-JP');
+  $('#work-relief').src = blobUrl(w.relief);
+  $('#work-trace').src = blobUrl(w.trace);
+  $('#work-new').hidden = !fresh;
+  $('#work-next-head').textContent = fresh ? 'このあと' : '';
+  armDelete(false);
+  $('#list-sheet').hidden = true;
+  $('#work-sheet').hidden = false;
+}
+const workFile = {
+  relief: w => ({ blob: w.relief, name: fileBase(w) + '_凹凸.png' }),
+  trace: w => ({ blob: w.trace, name: fileBase(w) + '_軌跡.png' }),
+  json: w => ({ blob: w.data, name: fileBase(w) + '_データ.json' }),
+  async stl(w) {
+    const hm = JSON.parse(await w.data.text()).heightmap;
+    return { blob: buildSTL(decodeHeight(hm)), name: fileBase(w) + '.stl' };
+  },
+};
+async function withBusy(text, fn) {
+  busy(true, text); await nextFrame();
+  try { return await fn(); }
+  catch (e) { toast('失敗しました:' + e.message); }
+  finally { busy(false); }
+}
+$('#out-relief').addEventListener('click', () => { const f = workFile.relief(openedWork); deliver(f.blob, f.name); });
+$('#out-trace').addEventListener('click', () => { const f = workFile.trace(openedWork); deliver(f.blob, f.name); });
+$('#out-json').addEventListener('click', () => { const f = workFile.json(openedWork); deliver(f.blob, f.name); });
+$('#out-stl').addEventListener('click', async () => {
+  const f = await withBusy('STLを作っています…', () => workFile.stl(openedWork));
+  if (f) deliver(f.blob, f.name);
+});
+$('#out-zip').addEventListener('click', async () => {
+  const w = openedWork;
+  const zip = await withBusy('まとめています…', async () => buildZip([workFile.relief(w), workFile.trace(w), workFile.json(w), await workFile.stl(w)]));
+  if (zip) deliver(zip, fileBase(w) + '.zip');
+});
+$('#work-tilt').addEventListener('click', async () => {
+  const w = openedWork;
+  await withBusy('開いています…', async () => {
+    const hm = JSON.parse(await w.data.text()).heightmap;
+    const img = await createImageBitmap(w.relief);
+    tilt.show(decodeHeight(hm), img);
+  });
+});
+$('#work-new').addEventListener('click', () => {
+  field.fill(0); settled.fill(0); shadeFlag.fill(1); relaxFlag.fill(0); touched.fill(0);
+  undoStack.length = 0; undoBytes = 0; updateRail();
+  session = newSession();
+  $('#work-sheet').hidden = true; revokeAll();
+  $('#hint').style.opacity = 1;
+});
+function armDelete(on) { const b = $('#work-del'); b.dataset.armed = on ? '1' : ''; b.textContent = on ? 'もう一度押すと削除します' : 'この形を削除'; }
+$('#work-del').addEventListener('click', async () => {
+  if ($('#work-del').dataset.armed !== '1') { armDelete(true); return; }
+  try {
+    await DB.del(openedWork.id);
+    $('#work-sheet').hidden = true;
+    toast('削除しました');
+    if (!freshOpen) showList();
+  } catch (e) { toast('削除できませんでした'); }
+});
+
+/* 一覧 */
+async function showList() {
+  endAllContacts();
+  revokeAll();
+  const grid = $('#list-grid'); grid.textContent = '';
+  let works = [];
+  try { works = await DB.all(); } catch (_) { toast('一覧を読み込めませんでした'); }
+  works.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  $('#list-empty').hidden = !!works.length;
+  for (const w of works) {
+    const b = document.createElement('button'); b.className = 'work-card';
+    const img = new Image(); img.src = blobUrl(w.thumb); img.alt = '';
+    const t = document.createElement('b'); t.textContent = w.name || '名前なし';
+    const s = document.createElement('small'); s.textContent = new Date(w.createdAt).toLocaleString('ja-JP', { dateStyle: 'short', timeStyle: 'short' });
+    b.append(img, t, s);
+    b.addEventListener('click', () => openWork(w));
+    grid.append(b);
+  }
+  $('#list-sheet').hidden = false;
+}
+$('#btn-list').addEventListener('click', showList);
+
+/* 設定 */
+function refreshSettings() {
+  const label = { granted: motionLive() ? '本体の揺れを使っています。' : '揺れの値が届いていません。接触幅と時間から強さを推定しています。', denied: '揺れの使用が許可されていません。接触幅と時間から強さを推定しています。', unavailable: 'この環境では揺れを使えません。接触幅と時間から強さを推定しています。' };
+  $('#motion-status').textContent = label[motion.state];
+  $('#motion-range').value = motion.max;
+  $('#motion-out').textContent = motion.max.toFixed(2);
+  $('#meter-toggle').checked = meterOn;
+}
+$('#btn-settings').addEventListener('click', () => { refreshSettings(); $('#settings-sheet').hidden = false; });
+$('#motion-range').addEventListener('input', e => {
+  motion.max = parseFloat(e.target.value);
+  $('#motion-out').textContent = motion.max.toFixed(2);
+  store.set(MOTION_KEY, String(motion.max));
+});
+$('#meter-toggle').addEventListener('change', e => {
+  meterOn = e.target.checked; store.set(METER_KEY, meterOn ? '1' : '0');
+  $('#meter').hidden = !meterOn;
+  if (meterOn) $('#meter').textContent = '面にさわると表示します';
+});
+$('#meter').hidden = !meterOn;
+if (meterOn) $('#meter').textContent = '面にさわると表示します';
+
+/* 起動 */
+fitSurface();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitSurface);
+shadeFlag.fill(1); shadeDirty();
+requestAnimationFrame(tick);
+if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+  // 許可の確認はタップの中でしか出せない。タッチのないPCでは揺れも来ないので聞かない
+  if (navigator.maxTouchPoints > 0) {
+    $('#start-sheet').hidden = false;
+    $('#btn-start').addEventListener('click', async () => { $('#start-sheet').hidden = true; await enableMotion(); });
+  }
+} else {
+  enableMotion();
+}
+window.__katachi = { field, W, H, buildSTL, buildZip, decodeHeight, session: () => session, undoDepth: () => undoStack.length, motion };
+</script>
+</body>
+</html>
