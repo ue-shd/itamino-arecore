@@ -216,7 +216,7 @@
 <div class="sheet" id="tilt-sheet" hidden>
   <canvas id="tilt-canvas"></canvas>
   <button class="btn" id="tilt-close">閉じる</button>
-  <div id="tilt-tip">指で動かすと向きが変わります(凹凸は2倍に強調)</div>
+  <div id="tilt-tip">指1本で向きを変える・指2本で拡大縮小と移動(マウスはホイールで拡大縮小。凹凸は2倍に強調)</div>
 </div>
 
 <!-- 設定 -->
@@ -870,7 +870,7 @@ const DB = {
 
 /* ---------- TILT：傾けて見る（素のWebGL。外部読み込みなしで動かす） ---------- */
 const tilt = {
-  gl: null, prog: null, nIdx: 0, yaw: -.2, pitch: .9,
+  gl: null, prog: null, nIdx: 0, yaw: -.2, pitch: .9, zoom: 1, panX: 0, panY: 0,
   init() {
     const cv = $('#tilt-canvas');
     const gl = cv.getContext('webgl', { antialias: true });
@@ -905,17 +905,45 @@ const tilt = {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.enable(gl.DEPTH_TEST); gl.clearColor(.851, .827, .776, 1);
-    let drag = null;
-    cv.addEventListener('pointerdown', e => { drag = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId); });
+    // 指1本：向きを変える／指2本：広げ縮めで拡大縮小、そのまま動かすと移動／ホイール：拡大縮小
+    const pts = new Map();
+    const toNdc = (x, y) => { const r = cv.getBoundingClientRect(); return [(x - r.left) / r.width * 2 - 1, 1 - (y - r.top) / r.height * 2]; };
+    const pair = () => {
+      const [a, b] = [...pts.values()];
+      return { d: Math.hypot(a[0] - b[0], a[1] - b[1]), mid: toNdc((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) };
+    };
+    cv.addEventListener('pointerdown', e => { pts.set(e.pointerId, [e.clientX, e.clientY]); try { cv.setPointerCapture(e.pointerId); } catch (_) {} });
     cv.addEventListener('pointermove', e => {
-      if (!drag) return;
-      this.yaw += (e.clientX - drag[0]) * .007;
-      this.pitch = clamp(this.pitch + (e.clientY - drag[1]) * .006, 0, 1.45);
-      drag = [e.clientX, e.clientY]; this.draw();
+      const prev = pts.get(e.pointerId);
+      if (!prev) return;
+      if (pts.size === 1) {
+        this.yaw += (e.clientX - prev[0]) * .007;
+        this.pitch = clamp(this.pitch + (e.clientY - prev[1]) * .006, 0, 1.45);
+        pts.set(e.pointerId, [e.clientX, e.clientY]);
+      } else {
+        const p0 = pair();
+        pts.set(e.pointerId, [e.clientX, e.clientY]);
+        const p1 = pair();
+        this.panX += p1.mid[0] - p0.mid[0]; this.panY += p1.mid[1] - p0.mid[1];
+        this.zoomAt(p0.d > 0 ? p1.d / p0.d : 1, p1.mid);
+      }
+      this.draw();
     });
-    const up = () => { drag = null; };
+    const up = e => { pts.delete(e.pointerId); };
     cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    cv.addEventListener('wheel', e => {
+      e.preventDefault();
+      this.zoomAt(Math.exp(-e.deltaY * .0015), toNdc(e.clientX, e.clientY));
+      this.draw();
+    }, { passive: false });
     return true;
+  },
+  /* 指定した画面位置（-1〜1）を動かさずに拡大縮小する */
+  zoomAt(ratio, [fx, fy]) {
+    const next = clamp(this.zoom * ratio, .6, 6), k = next / this.zoom;
+    this.panX = clamp(fx - (fx - this.panX) * k, -next, next);
+    this.panY = clamp(fy - (fy - this.panY) * k, -next, next);
+    this.zoom = next;
   },
   /* arr：高さ、source：表面の絵（canvasかimage） */
   show(arr, source) {
@@ -930,7 +958,7 @@ const tilt = {
     gl.enableVertexAttribArray(this.hLoc); gl.vertexAttribPointer(this.hLoc, 1, gl.FLOAT, false, 0, 0);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
-    this.yaw = -.2; this.pitch = .9;
+    this.yaw = -.2; this.pitch = .9; this.zoom = 1; this.panX = 0; this.panY = 0;
     this.draw();
   },
   draw() {
@@ -944,13 +972,13 @@ const tilt = {
     const dist = Math.max(3.0, 3.0 * (1.34 / asp));
     const rot = [cy, -sy, 0, sy * cp, cy * cp, sp, -sy * sp, -cy * sp, cp];   // 手前を下げて見下ろす（面内で回してから傾ける）
     const m = new Float32Array(16);
-    const a = f / asp, b = f, c = (fr + n) / (n - fr), d = 2 * fr * n / (n - fr);
+    const a = f * this.zoom / asp, b = f * this.zoom, c = (fr + n) / (n - fr), d = 2 * fr * n / (n - fr);
     // 列優先：P·T(0,0,-dist)·R
     for (let col = 0; col < 3; col++) {
       const x = rot[col], y = rot[col + 3], z = rot[col + 6];
-      m[col * 4] = a * x; m[col * 4 + 1] = b * y; m[col * 4 + 2] = c * z; m[col * 4 + 3] = -z;
+      m[col * 4] = a * x - this.panX * z; m[col * 4 + 1] = b * y - this.panY * z; m[col * 4 + 2] = c * z; m[col * 4 + 3] = -z;
     }
-    m[12] = 0; m[13] = 0; m[14] = c * -dist + d; m[15] = dist;
+    m[12] = this.panX * dist; m[13] = this.panY * dist; m[14] = c * -dist + d; m[15] = dist;
     gl.uniformMatrix4fv(this.mLoc, false, m);
     gl.drawElements(gl.TRIANGLES, this.nIdx, gl.UNSIGNED_SHORT, 0);
   },
