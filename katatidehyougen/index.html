@@ -89,9 +89,9 @@
   .btn.danger { color: #a33a2a; }
   .row { display: flex; flex-wrap: wrap; gap: 10px; }
   .row.end { justify-content: flex-end; }
-  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 auto 16px; max-width: 560px; }
   .pair figure { margin: 0; }
-  .pair img { display: block; width: 100%; aspect-ratio: 4/3; border-radius: 8px; border: 1px solid var(--line); background: #f4f0e7; }
+  .pair img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 8px; border: 1px solid var(--line); background: #f4f0e7; }
   .pair figcaption { font-size: 13px; color: var(--muted); margin-top: 5px; text-align: center; }
   label.field { display: block; font-size: 14px; font-weight: 700; margin-bottom: 16px; }
   input[type=text] {
@@ -104,7 +104,7 @@
 
   #list-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
   .work-card { padding: 0; border: 0; background: none; text-align: left; cursor: pointer; }
-  .work-card img { display: block; width: 100%; aspect-ratio: 4/3; border-radius: 8px; border: 1px solid var(--line); background: #f4f0e7; }
+  .work-card img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 8px; border: 1px solid var(--line); background: #f4f0e7; }
   .work-card b { display: block; font-size: 15px; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .work-card small { color: var(--muted); font-size: 12px; }
 
@@ -132,7 +132,7 @@
 <div id="app">
   <main id="stage">
     <div id="surface-box">
-      <canvas id="surface" width="1280" height="960" aria-label="指でさわって形を作る面"></canvas>
+      <canvas id="surface" width="960" height="960" aria-label="指でさわって形を作る面"></canvas>
       <div id="hint">指でさわる</div>
       <div id="meter" hidden></div>
     </div>
@@ -253,8 +253,8 @@ const clamp = (v, a = 0, b = 1) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
 
 /* ---------- SAND：1枚の高さの面。単位は「マス」。1マス=印刷時0.1mm ---------- */
-const W = 1280, H = 960, TILE = 32, TW = W / TILE, TH = H / TILE;
-const K = W / 1024;                       // 調整時の基準解像度からの倍率
+const W = 960, H = 960, TILE = 32, TW = W / TILE, TH = H / TILE;
+const K = 1.25;                           // 痕の大きさの倍率（マスは画面上でほぼ同じ大きさ）
 const TALUS = 0.72;                       // 崩れずに保てる傾き（砂の安息角に近い値）
 const field = new Float32Array(W * H);    // 現在の高さ
 const settled = new Float32Array(W * H);  // 直前の1手が終わった時点の高さ（戻す用）
@@ -758,15 +758,15 @@ function buildData(name, savedAt) {
     heightmap: { width: W, height: H, encoding: 'int16le-base64', scale: 100, data: encodeHeight(field) },
   });
 }
-/* STL：128×96mm、0.4mm格子。高さ2倍、最も低い所の下に3mmの土台。閉じた立体（水密） */
+/* STL：96×96mm、0.4mm格子。高さ2倍、最も低い所の下に3mmの土台。閉じた立体（水密） */
 const STL = { step: 4, cellMm: .1, zScale: 2, baseMm: 3 };
-function buildSTL(arr) {
-  const gx = Math.floor((W - 1) / STL.step) + 1, gy = Math.floor((H - 1) / STL.step) + 1, s = STL.step;
+function buildSTL(arr, aw = W, ah = H) {
+  const gx = Math.floor((aw - 1) / STL.step) + 1, gy = Math.floor((ah - 1) / STL.step) + 1, s = STL.step;
   const z = new Float32Array(gx * gy);
   let min = Infinity;
   for (let j = 0; j < gy; j++) for (let i = 0; i < gx; i++) {
     let sum = 0, n = 0;
-    for (let y = j * s; y < Math.min(H, (j + 1) * s); y++) for (let x = i * s; x < Math.min(W, (i + 1) * s); x++) { sum += arr[y * W + x]; n++; }
+    for (let y = j * s; y < Math.min(ah, (j + 1) * s); y++) for (let x = i * s; x < Math.min(aw, (i + 1) * s); x++) { sum += arr[y * aw + x]; n++; }
     const v = sum / n; z[j * gx + i] = v; if (v < min) min = v;
   }
   const mm = s * STL.cellMm;
@@ -878,12 +878,12 @@ const tilt = {
     this.gl = gl;
     const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
     const p = gl.createProgram();
-    gl.attachShader(p, sh(gl.VERTEX_SHADER, `attribute vec2 uv; attribute float hgt; uniform mat4 m; varying vec2 vuv;
-      void main(){ vuv=uv; gl_Position=m*vec4((uv.x-.5)*2.,(0.5-uv.y)*1.5,hgt,1.); }`));
+    gl.attachShader(p, sh(gl.VERTEX_SHADER, `attribute vec2 uv; attribute float hgt; uniform mat4 m; uniform float ar; varying vec2 vuv;
+      void main(){ vuv=uv; gl_Position=m*vec4((uv.x-.5)*2.,(0.5-uv.y)*2.*ar,hgt,1.); }`));
     gl.attachShader(p, sh(gl.FRAGMENT_SHADER, `precision mediump float; uniform sampler2D tex; varying vec2 vuv;
       void main(){ gl_FragColor=texture2D(tex,vuv); }`));
     gl.linkProgram(p); gl.useProgram(p); this.prog = p;
-    this.gx = 256; this.gy = 192;
+    this.gx = 240; this.gy = 240;
     const uv = new Float32Array(this.gx * this.gy * 2), idx = new Uint16Array((this.gx - 1) * (this.gy - 1) * 6);
     let k = 0;
     for (let j = 0; j < this.gy; j++) for (let i = 0; i < this.gx; i++) { uv[k++] = i / (this.gx - 1); uv[k++] = j / (this.gy - 1); }
@@ -899,6 +899,7 @@ const tilt = {
     this.hBuf = gl.createBuffer();
     this.hLoc = gl.getAttribLocation(p, 'hgt');
     this.mLoc = gl.getUniformLocation(p, 'm');
+    this.arLoc = gl.getUniformLocation(p, 'ar');
     gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -946,14 +947,15 @@ const tilt = {
     this.zoom = next;
   },
   /* arr：高さ、source：表面の絵（canvasかimage） */
-  show(arr, source) {
+  show(arr, source, aw = W, ah = H) {
     $('#tilt-sheet').hidden = false;
     if (!this.gl && !this.init()) { $('#tilt-sheet').hidden = true; toast('この端末では傾き表示を使えません'); return; }
     const gl = this.gl, hs = new Float32Array(this.gx * this.gy);
-    const sx = (W - 1) / (this.gx - 1), sy = (H - 1) / (this.gy - 1);
-    // 面の幅2.0=1280マスに合わせ、凹凸は2倍に強調
-    const zk = 2 / W * 2;
-    for (let j = 0; j < this.gy; j++) for (let i = 0; i < this.gx; i++) hs[j * this.gx + i] = arr[Math.round(j * sy) * W + Math.round(i * sx)] * zk;
+    const sx = (aw - 1) / (this.gx - 1), sy = (ah - 1) / (this.gy - 1);
+    // 面の幅2.0に合わせ、凹凸は2倍に強調
+    const zk = 2 / aw * 2;
+    gl.uniform1f(this.arLoc, ah / aw);
+    for (let j = 0; j < this.gy; j++) for (let i = 0; i < this.gx; i++) hs[j * this.gx + i] = arr[Math.round(j * sy) * aw + Math.round(i * sx)] * zk;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.hBuf); gl.bufferData(gl.ARRAY_BUFFER, hs, gl.STATIC_DRAW);
     gl.enableVertexAttribArray(this.hLoc); gl.vertexAttribPointer(this.hLoc, 1, gl.FLOAT, false, 0, 0);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
@@ -995,8 +997,8 @@ function hideHint() { $('#hint').style.opacity = 0; }
 function updateRail() { $('#btn-undo').disabled = !undoStack.length; }
 function fitSurface() {
   const st = $('#stage'), bw = st.clientWidth, bh = st.clientHeight;
-  const w = Math.floor(Math.min(bw, bh * 4 / 3)), box = $('#surface-box');
-  box.style.width = w + 'px'; box.style.height = Math.floor(w * 3 / 4) + 'px';
+  const w = Math.floor(Math.min(bw, bh)), box = $('#surface-box');
+  box.style.width = box.style.height = w + 'px';
   if (tilt.gl && !$('#tilt-sheet').hidden) tilt.draw();
 }
 addEventListener('resize', fitSurface);
@@ -1042,8 +1044,8 @@ $('#btn-save-do').addEventListener('click', async () => {
   busy(true, '保存しています…'); await nextFrame();
   try {
     const json = buildData(name, at.toISOString());
-    const thumbCv = document.createElement('canvas'); thumbCv.width = 320; thumbCv.height = 240;
-    thumbCv.getContext('2d').drawImage(surfaceCv, 0, 0, 320, 240);
+    const thumbCv = document.createElement('canvas'); thumbCv.width = 320; thumbCv.height = 320;
+    thumbCv.getContext('2d').drawImage(surfaceCv, 0, 0, 320, 320);
     const work = {
       id: at.getTime() + '-' + Math.random().toString(36).slice(2, 7), name, createdAt: at.toISOString(),
       relief: draftBlobs.relief, trace: draftBlobs.trace, thumb: await canvasBlob(thumbCv),
@@ -1079,7 +1081,7 @@ const workFile = {
   json: w => ({ blob: w.data, name: fileBase(w) + '_データ.json' }),
   async stl(w) {
     const hm = JSON.parse(await w.data.text()).heightmap;
-    return { blob: buildSTL(decodeHeight(hm)), name: fileBase(w) + '.stl' };
+    return { blob: buildSTL(decodeHeight(hm), hm.width, hm.height), name: fileBase(w) + '.stl' };
   },
 };
 async function withBusy(text, fn) {
@@ -1105,7 +1107,7 @@ $('#work-tilt').addEventListener('click', async () => {
   await withBusy('開いています…', async () => {
     const hm = JSON.parse(await w.data.text()).heightmap;
     const img = await createImageBitmap(w.relief);
-    tilt.show(decodeHeight(hm), img);
+    tilt.show(decodeHeight(hm), img, hm.width, hm.height);
   });
 });
 $('#work-new').addEventListener('click', () => {
