@@ -1,0 +1,1312 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>痛みのカタチ（波から）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root {
+    --paper: #f6f1e8;
+    --card: #fffdf8;
+    --ink: #3d362e;
+    --muted: #8b8174;
+    --faint: #b9afa2;
+    --line: rgba(90, 70, 45, 0.10);
+    --soft: #efe8dc;
+    --shadow: 0 6px 24px rgba(90, 70, 45, 0.07), 0 1px 3px rgba(90, 70, 45, 0.06);
+    --round: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif;
+    --grain: none;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: var(--grain), var(--paper);
+    color: var(--ink);
+    font-family: var(--round);
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    touch-action: none; overscroll-behavior: none;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  #lanes { scrollbar-width: none; }
+  #lanes::-webkit-scrollbar { display: none; }
+  h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: .06em; }
+  .sub { color: var(--muted); font-size: 12px; line-height: 1.65; font-weight: 500; }
+
+  #app {
+    position: fixed; inset: 0;
+    padding: calc(env(safe-area-inset-top) + 10px) calc(env(safe-area-inset-right) + 12px)
+             calc(env(safe-area-inset-bottom) + 12px) calc(env(safe-area-inset-left) + 12px);
+    display: grid; gap: 12px;
+    grid-template-columns: 344px minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "top top" "mk stage" "mk rhy";
+  }
+  .panel { background: var(--grain), var(--card); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow); }
+
+  /* ---- header ---- */
+  #top { grid-area: top; display: flex; align-items: center; gap: 18px; padding: 2px 4px 0 8px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; letter-spacing: .08em; white-space: nowrap; }
+  .brand .orb {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #e4e6ea, #8f939d 55%, #5d616b);
+    box-shadow: 0 3px 6px rgba(90,70,45,.18), inset 0 0 0 1px rgba(90,70,45,.08);
+  }
+  .brand small { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+  #steps { display: flex; gap: 6px; margin: 0 auto; padding: 0; list-style: none; }
+  #steps li {
+    display: flex; align-items: center; gap: 8px; padding: 7px 14px 7px 8px; border-radius: 99px;
+    font-size: 13px; color: var(--faint); font-weight: 700; transition: color .3s, background .3s; white-space: nowrap;
+  }
+  #steps li b {
+    width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px;
+    border: 1.5px solid currentColor;
+  }
+  #steps li.now { color: var(--ink); background: var(--card); box-shadow: var(--shadow); }
+  #steps li.now b { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  #steps li.done { color: var(--muted); }
+  .btn {
+    border: 1.5px solid var(--line); background: var(--card); border-radius: 99px;
+    padding: 11px 20px; font-size: 14px; font-weight: 700; transition: transform .12s, opacity .2s; white-space: nowrap;
+  }
+  .btn:active { transform: scale(.95); }
+  .btn:disabled { opacity: .35; pointer-events: none; }
+  .btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); box-shadow: 0 6px 18px rgba(61,54,46,.22); }
+  .btn.small { padding: 7px 14px; font-size: 12.5px; }
+  .btn.ghost { background: transparent; }
+
+  /* ---- wave maker ---- */
+  #maker {
+    grid-area: mk; padding: 14px; min-height: 0; display: grid; gap: 12px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "head" "chips" "bars" "add";
+  }
+  #selHead { grid-area: head; display: flex; align-items: center; gap: 10px; }
+  #selHead canvas { width: 46px; height: 46px; flex: none; }
+  #selName { font-size: 21px; font-weight: 700; letter-spacing: .04em; }
+  #chips { grid-area: chips; display: flex; flex-direction: column; gap: 6px; }
+  .chipTitle { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .08em; }
+  .chipRow { display: grid; gap: 5px; }
+  #shapeRow { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #envRow { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .chip {
+    display: flex; align-items: center; gap: 3px; border: 1.5px solid var(--line); border-radius: 13px; background: transparent;
+    padding: 3px 5px; font-size: 12px; font-weight: 700; min-width: 0; white-space: nowrap;
+    transition: background .2s, border-color .2s, transform .12s;
+  }
+  .chip:active { transform: scale(.96); }
+  .chip canvas { flex: none; }
+  #shapeRow .chip canvas { width: 28px; height: 28px; }
+  #envRow .chip { flex-direction: column; padding: 4px 1px 3px; font-size: 11px; }
+  #envRow .chip canvas { width: 44px; height: 20px; }
+  .chip.on { background: color-mix(in srgb, var(--c) 14%, transparent); border-color: color-mix(in srgb, var(--c) 70%, transparent); }
+  #barRow { grid-area: bars; display: flex; justify-content: space-between; gap: 4px; min-height: 0; }
+  .bar { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; min-height: 0; transition: opacity .2s; }
+  .bar.off { opacity: .32; pointer-events: none; }
+  #envRow.off { opacity: .32; pointer-events: none; }
+  .bar .end { font-size: 10px; color: var(--faint); white-space: nowrap; font-weight: 700; }
+  .track {
+    position: relative; flex: 1; width: 38px; min-height: 100px; border-radius: 19px;
+    background: var(--soft); box-shadow: inset 0 1px 3px rgba(90,70,45,.10); touch-action: none;
+  }
+  .track .fill {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 0; border-radius: 19px;
+    background: var(--grain-strong, none), var(--c);
+  }
+  .track .knob {
+    position: absolute; left: 50%; width: 30px; height: 30px; border-radius: 50%; background: #fffdf8;
+    transform: translate(-50%, 50%); box-shadow: 0 2px 8px rgba(61,54,46,.25), 0 0 0 3px color-mix(in srgb, var(--c) 45%, transparent);
+  }
+  .bar .lab { font-size: 13px; font-weight: 700; white-space: nowrap; }
+  .bar .val { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; height: 14px; font-weight: 500; white-space: nowrap; }
+  #addBtn { grid-area: add; width: 100%; font-size: 16px; padding: 13px 20px; }
+
+  /* ---- stage ---- */
+  #stage { grid-area: stage; position: relative; min-height: 0; min-width: 0; overflow: hidden; }
+  #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; border-radius: 24px; }
+  #hint {
+    position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: 86%;
+    text-align: center; pointer-events: none; transition: opacity .5s;
+  }
+  #hint .big { font-size: 19px; font-weight: 700; letter-spacing: .06em; margin-bottom: 4px; }
+  #hint .sub { font-size: 13px; }
+  #stageTip {
+    position: absolute; left: 18px; top: 14px; font-size: 11.5px; color: var(--faint); font-weight: 700;
+    pointer-events: none; letter-spacing: .04em;
+  }
+  #resetBtn { position: absolute; right: 14px; top: 10px; opacity: 0; pointer-events: none; transition: opacity .3s; }
+  #resetBtn.show { opacity: 1; pointer-events: auto; }
+  #toast {
+    position: absolute; left: 50%; top: 42px; transform: translateX(-50%); padding: 8px 16px; border-radius: 99px;
+    background: var(--ink); font-size: 13px; color: var(--paper); pointer-events: none; opacity: 0; transition: opacity .4s;
+    white-space: nowrap; font-weight: 700;
+  }
+  #rec {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    display: none; align-items: center; gap: 12px; padding: 9px 18px; border-radius: 99px;
+    background: var(--ink); color: var(--paper); font-size: 15px; font-variant-numeric: tabular-nums; pointer-events: none;
+  }
+  #rec .dot { width: 10px; height: 10px; border-radius: 50%; background: #e0584b; animation: blink 1s infinite; }
+  #rec .prog { width: 140px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.25); overflow: hidden; }
+  #rec .prog i { display: block; height: 100%; width: 0; background: var(--paper); }
+  @keyframes blink { 50% { opacity: .25; } }
+
+  /* ---- stacked waves ---- */
+  #rhythm { grid-area: rhy; padding: 12px 14px; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+  #rhythm .head { display: flex; align-items: center; gap: 10px; }
+  #rhythm .head .sp { flex: 1; }
+  #rhythm .head h2, #rhythm .head .btn { white-space: nowrap; flex: none; }
+  #rhythm .head .sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #lanes { display: flex; flex-direction: column; gap: 5px; max-height: 142px; overflow-y: auto; touch-action: pan-y; }
+  .lane { display: grid; grid-template-columns: 62px minmax(0, 1fr) 66px 58px 30px; align-items: center; gap: 8px; }
+  .lane .st {
+    border: 1.5px solid var(--line); background: var(--card); border-radius: 99px; padding: 5px 0;
+    font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap;
+  }
+  .lane.stopped .st { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .lane.stopped canvas { cursor: default; }
+  .lane .ln {
+    display: flex; align-items: center; gap: 7px; border: 0; background: transparent; padding: 4px 2px;
+    font-weight: 700; font-size: 14px; text-align: left; opacity: .55; transition: opacity .2s; white-space: nowrap;
+  }
+  .lane .ln i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
+  .lane.sel .ln { opacity: 1; }
+  .lane canvas {
+    width: 100%; height: 32px; border-radius: 10px; background: var(--soft); touch-action: none;
+    border: 1.5px solid transparent; cursor: ew-resize; display: block;
+  }
+  .lane.sel canvas { border-color: color-mix(in srgb, var(--c) 55%, transparent); }
+  .lane .lv { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; line-height: 1.3; font-weight: 500; }
+  .lane .x {
+    width: 28px; height: 28px; border-radius: 50%; border: 0; background: var(--soft); color: var(--muted);
+    font-size: 13px; padding: 0;
+  }
+  #sumLane { display: none; }
+  #sumLane.show { display: grid; }
+  #sumLane .ln { opacity: 1; }
+  #sumLane canvas { height: 42px; cursor: default; touch-action: auto; background: #f4ecdf; }
+
+  /* short landscape screens: keep room for the ball, the lanes scroll */
+  @media (orientation: landscape) and (max-height: 720px) { #lanes { max-height: 72px; } }
+
+  /* ---- portrait ---- */
+  @media (orientation: portrait) {
+    #app {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr) auto auto;
+      grid-template-areas: "top" "stage" "rhy" "mk";
+    }
+    #steps li span { display: none; }
+    #maker {
+      height: 352px;
+      grid-template-columns: 300px minmax(0, 1fr);
+      grid-template-rows: auto auto minmax(0, 1fr);
+      grid-template-areas: "head bars" "chips bars" "add bars";
+    }
+    #addBtn { align-self: end; }
+    #lanes { max-height: 104px; }
+  }
+
+  /* ---- sheets ---- */
+  .sheet {
+    position: fixed; inset: 0; background: rgba(61,54,46,.28); display: none; align-items: center; justify-content: center;
+    z-index: 10; padding: 20px; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  .sheet.open { display: flex; }
+  .sheet .box {
+    background: var(--grain), var(--card); border-radius: 28px; padding: 24px; width: 100%; max-width: 560px; max-height: 92vh;
+    display: flex; flex-direction: column; gap: 14px; box-shadow: 0 30px 80px rgba(61,54,46,.25);
+  }
+  .sheet .box.wide { max-width: 640px; }
+  .sheet h3 { margin: 0; font-size: 20px; letter-spacing: .05em; }
+  .sheet .row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+  .sheet a.btn { text-decoration: none; color: inherit; }
+  .sheet a.btn.primary { color: var(--paper); }
+  #nameIn {
+    width: 100%; font: inherit; font-size: 19px; font-weight: 700; color: var(--ink);
+    background: var(--paper); border: 1.5px solid var(--line); border-radius: 16px; padding: 12px 16px; outline: none;
+    -webkit-user-select: text; user-select: text; touch-action: manipulation;
+  }
+  #nameIn:focus { border-color: var(--muted); }
+  #nameIn::placeholder { color: var(--faint); font-weight: 500; }
+  #out { width: 100%; max-height: 56vh; border-radius: 18px; background: var(--paper); }
+  #outName { font-size: 22px; font-weight: 700; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <div class="brand"><span class="orb"></span>痛みのカタチ<small>波から</small></div>
+    <ol id="steps">
+      <li data-s="1"><b>1</b><span>波をつくる</span></li>
+      <li data-s="2"><b>2</b><span>波を重ねる</span></li>
+      <li data-s="3"><b>3</b><span>名前をつける</span></li>
+    </ol>
+    <button class="btn primary" id="saveBtn">できあがり</button>
+  </header>
+
+  <aside id="maker" class="panel">
+    <div id="selHead">
+      <canvas id="selIcon" width="96" height="96"></canvas>
+      <div><div id="selName">波1</div><div class="sub" id="selState">をつくっています</div></div>
+    </div>
+    <div id="chips">
+      <div class="chipTitle">波の形</div>
+      <div class="chipRow" id="shapeRow"></div>
+      <div class="chipTitle">時間の動き</div>
+      <div class="chipRow" id="envRow"></div>
+    </div>
+    <div id="barRow"></div>
+    <button class="btn primary" id="addBtn">＋ 波を重ねる</button>
+  </aside>
+
+  <main id="stage" class="panel">
+    <canvas id="cv"></canvas>
+    <div id="hint">
+      <div class="big">あなたの痛みは、どんな波ですか</div>
+      <div class="sub">形やバーを変えると、玉の波打ち方が変わります。<br>できたら「＋ 波を重ねる」で、次の波を足していけます</div>
+    </div>
+    <div id="toast"></div>
+    <div id="stageTip">玉を指でなぞると回せます　／　玉のまわりをなぞると痛む場所が動きます</div>
+    <button class="btn small" id="resetBtn">正面に戻す</button>
+    <div id="rec"><span class="dot"></span><span id="recT">10.0</span><span class="prog"><i id="recP"></i></span></div>
+  </main>
+
+  <section id="rhythm" class="panel">
+    <div class="head">
+      <h2>重ねた波</h2>
+      <span class="sub">「止める」で波を玉から外して置いておけます。名前を押すと作り直せます</span>
+      <span class="sp"></span>
+      <button class="btn small" id="syncBtn">間隔をそろえる</button>
+      <button class="btn small ghost" id="clearBtn">ぜんぶ消す</button>
+    </div>
+    <div class="lane" id="sumLane">
+      <div class="ln">重なり</div><canvas></canvas><span class="lv"></span><span></span><span></span>
+    </div>
+    <div id="lanes"></div>
+  </section>
+</div>
+
+<div class="sheet" id="nameSheet">
+  <div class="box">
+    <h3>この波に名前をつける</h3>
+    <input id="nameIn" type="text" maxlength="30" placeholder="例：雨の前のこめかみ" autocomplete="off" enterkeyhint="go">
+    <div class="sub">名前は動画の中とファイル名に入ります。ボタンを押すと、10秒の録画がはじまります。</div>
+    <div class="row">
+      <button class="btn ghost" id="nameCancel">もどる</button>
+      <button class="btn primary" id="nameGo">10秒の録画をはじめる</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="resultSheet">
+  <div class="box wide">
+    <div id="outName"></div>
+    <video id="out" playsinline muted loop autoplay></video>
+    <div class="sub" id="outNote"></div>
+    <div class="row">
+      <button class="btn ghost" id="closeBtn">閉じる</button>
+      <a class="btn" id="dlBtn" download>ファイルに保存</a>
+      <button class="btn primary" id="shareBtn">共有・写真に保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- what a wave can be made of ----------
+  // Unlike 痛みのカタチ (itamino), no word sets these: the user builds the wave and gives it their own name at the end.
+  const SHAPES = [
+    { key: 'sine',   label: 'なめらか',   k: 6 },
+    { key: 'spike',  label: 'とがる',     k: 7 },
+    { key: 'tri',    label: 'ぎざぎざ',   k: 9 },
+    { key: 'saw',    label: 'のこぎり',   k: 9 },
+    { key: 'noise',  label: 'ゆらぐ',     k: 4 },
+    { key: 'radial', label: 'しめつける', k: 1 },
+  ];
+  const ROT = { tri: 0.4, saw: 0.15, noise: 0.08 };   // turns per period
+  const ENVS = [
+    { key: 'throb',   label: '脈打つ' },
+    { key: 'burst',   label: '一瞬' },
+    { key: 'swell',   label: 'ふくらむ' },
+    { key: 'flicker', label: 'ちらつく' },
+    { key: 'steady',  label: '続く' },
+  ];
+  const BARS = [
+    { key: 'amp',    label: '強さ',   top: 'つよい',   bot: 'よわい',   min: 0,    max: 1,   fmt: v => Math.round(v * 100) },
+    { key: 'period', label: '間隔',   top: 'ながい',   bot: 'みじかい', min: 0.12, max: 3.5, log: true, timeOnly: true, fmt: v => v.toFixed(2) + '秒' },
+    { key: 'k',      label: '細かさ', top: 'こまかい', bot: 'あらい',   min: 1,    max: 48,  int: true, offFor: 'radial', fmt: v => v },
+    { key: 'sharp',  label: '鋭さ',   top: 'するどい', bot: 'にぶい',   min: 0,    max: 1,   offFor: 'radial', fmt: v => Math.round(v * 100) },
+    { key: 'spread', label: '広がり', top: 'ぜんたい', bot: '一点',     min: 0.05, max: 1,   fmt: v => v >= 0.99 ? '全体' : Math.round(v * 100) },
+    { key: 'depth',  label: '途切れ', top: 'とぎれる', bot: 'つづく',   min: 0,    max: 1,   timeOnly: true, fmt: v => Math.round(v * 100) },
+  ];
+  const toNorm = (b, v) => b.log ? Math.log(v / b.min) / Math.log(b.max / b.min) : (v - b.min) / (b.max - b.min);
+  const fromNorm = (b, n) => {
+    const v = b.log ? b.min * Math.pow(b.max / b.min, n) : b.min + n * (b.max - b.min);
+    return b.int ? Math.round(v) : v;
+  };
+  // a plain starting point that does not lean toward any particular pain
+  const NEUTRAL = { shape: 'sine', env: 'throb', amp: 0.5, period: 1.5, k: 6, sharp: 0.4, spread: 1, depth: 0.65, phase: 0, focus: -Math.PI / 2 };
+  const COLORS = ['#c8473f', '#4a9fc4', '#d6a52a', '#7860ad', '#74a447', '#e07a38', '#ad4d8b', '#45589c', '#9a684b', '#3f9c8f'];
+  const MAX_LAYERS = COLORS.length;
+  const countOf = n => n < 10 ? n + 'つ' : n + '個';
+  const waveCountText = () => {
+    const off = layers.filter(isStopped).length;
+    return off ? `動いている波 ${layers.length - off}・止めた波 ${off}` : countOf(layers.length) + 'の波';
+  };
+
+  // ---------- state ----------
+  let layers = [];
+  let selId = null;
+  let nextId = 1;
+  let touched = false;
+  let recording = false;
+  let recName = '';
+  let step3 = false;
+
+  // while a wave is being adjusted, only its ring stays around the ball; the ball keeps showing everything stacked
+  let adjusting = 0, lastAdjust = -1;
+  const endAdjust = () => { adjusting = Math.max(0, adjusting - 1); lastAdjust = performance.now() / 1000; };
+
+  const $ = s => document.querySelector(s);
+  const cv = $('#cv'), ctx = cv.getContext('2d');
+  const selLayer = () => layers.find(l => l.id === selId);
+  const markTouched = () => { if (!touched) { touched = true; $('#hint').style.opacity = 0; } };
+
+  // ---------- paper grain & crayon textures ----------
+  function grainCanvas(size, alpha, dark) {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const g = c.getContext('2d'), img = g.createImageData(size, size);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = dark ? 60 : 255;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+      img.data[i + 3] = Math.random() < 0.5 ? Math.random() * alpha : 0;
+    }
+    g.putImageData(img, 0, 0);
+    return c;
+  }
+  document.documentElement.style.setProperty('--grain', `url(${grainCanvas(160, 14, true).toDataURL()})`);
+  document.documentElement.style.setProperty('--grain-strong', `url(${grainCanvas(96, 90, false).toDataURL()})`);
+
+  // a waxy, grainy fill like a coloured pencil / crayon stroke on paper
+  const crayonSrc = new Map();
+  function crayonCanvas(color) {
+    if (crayonSrc.has(color)) return crayonSrc.get(color);
+    const s = 96, c = document.createElement('canvas'); c.width = c.height = s;
+    const g = c.getContext('2d');
+    g.fillStyle = color; g.fillRect(0, 0, s, s);
+    const img = g.getImageData(0, 0, s, s), d = img.data;
+    for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+      const i = (y * s + x) * 4;
+      const streak = 0.5 + 0.5 * Math.sin((x + y * 0.35) * 0.9 + Math.sin(y * 0.3) * 2);
+      const keep = Math.random() < 0.18 + 0.25 * streak ? 0.25 + Math.random() * 0.3 : 0.8 + Math.random() * 0.2;
+      d[i + 3] = 255 * keep;
+    }
+    g.putImageData(img, 0, 0);
+    crayonSrc.set(color, c);
+    return c;
+  }
+  const patCache = new WeakMap();
+  function crayon(g, color) {
+    let m = patCache.get(g); if (!m) { m = new Map(); patCache.set(g, m); }
+    if (!m.has(color)) m.set(color, g.createPattern(crayonCanvas(color), 'repeat'));
+    return m.get(color);
+  }
+  function crayonStroke(g, path, color, width, alpha) {
+    g.save();
+    g.strokeStyle = crayon(g, color); g.lineCap = 'round'; g.lineJoin = 'round';
+    g.globalAlpha = alpha; g.lineWidth = width;
+    g.stroke(path);
+    g.globalAlpha = alpha * 0.55; g.lineWidth = width * 0.6;
+    g.translate(0.8, -0.6); g.stroke(path);
+    g.restore();
+  }
+
+  // ---------- wave math ----------
+  const TAU = Math.PI * 2;
+  const fract = x => x - Math.floor(x);
+  const hash = n => fract(Math.sin(n * 127.1 + 311.7) * 43758.5453);
+  const ease = x => x * x * (3 - 2 * x);
+
+  // temporal envelope in 0..1; phase is the user's shift as a fraction of the period
+  function envelope(kind, t, T, phase, seed) {
+    const u = t / T - phase, x = fract(u);
+    switch (kind) {
+      case 'throb':   return Math.pow(0.5 + 0.5 * Math.cos(TAU * x), 2);
+      case 'burst':   return Math.exp(-x * 7);
+      case 'swell':   return 0.5 - 0.5 * Math.cos(TAU * x);
+      case 'flicker': {
+        const s = u * 3, i = Math.floor(s), f = s - i;
+        const a = hash(i + seed), b = hash(i + 1 + seed);
+        return 0.15 + 0.85 * Math.pow(a + (b - a) * ease(f), 2);
+      }
+      default:        return 0.75 + 0.25 * Math.sin(TAU * x);
+    }
+  }
+  // depth: 1 = drops to nothing between pulses, 0 = never fades
+  const layerEnv = (t, L) => 1 - L.depth * (1 - envelope(L.env, t, L.period, L.phase, L.seed));
+  // each wave has its own clock so it can be stopped and later continue from the same moment.
+  // A stopped wave is set aside: its ring and lane stay as they were at that moment, and it leaves the ball.
+  // ballMix eases it off and back on, so pressing stop or resume never makes the ball jump.
+  const clockNow = () => performance.now() / 1000 - t0;
+  const isStopped = L => L.stopT !== null;
+  const localTime = (L, t) => isStopped(L) ? L.stopT : t - L.lag;
+  const laneEnv = (t, L) => Math.min(1, layerEnv(localTime(L, t), L));
+  function toggleStop(L) {
+    const t = clockNow();
+    if (isStopped(L)) { L.lag = t - L.stopT; L.stopT = null; }
+    else L.stopT = t - L.lag;
+    markTouched();
+    const E = laneEls.get(L.id);
+    if (E) showStop(L, E);
+    if (L.id === selId) renderBars();
+  }
+  function showStop(L, E) {
+    E.row.classList.toggle('stopped', isStopped(L));
+    E.st.textContent = isStopped(L) ? '動かす' : '止める';
+  }
+
+  // spatial pattern; returns roughly -0.3..1 (positive = outward)
+  function spatial(L, th, t) {
+    const k = Math.max(1, Math.round(L.k));
+    const flick = L.env === 'flicker' ? hash(Math.floor((t / L.period - L.phase) * 3) + L.seed * 7) * TAU : 0;
+    const p = TAU * (ROT[L.shape] || 0) * t / L.period + L.seed + flick;
+    const pw = 1 + L.sharp * 7;
+    switch (L.shape) {
+      case 'radial': return 1;
+      case 'spike':  return Math.pow(0.5 + 0.5 * Math.sin(k * th + p), 4 + L.sharp * 40) * 1.2;
+      case 'tri': {
+        const v = Math.asin(Math.sin(k * th + p)) / (Math.PI / 2);
+        return Math.sign(v) * Math.pow(Math.abs(v), 1 / (1 + L.sharp)) * 0.8;
+      }
+      case 'saw':    return Math.pow(fract((k * th + p) / TAU), pw) * 1.2 - 0.15;
+      case 'noise': {
+        const k2 = Math.max(1, Math.round(k * 1.7)), k3 = Math.max(1, Math.round(k * 2.9));
+        const w = TAU / L.period * 0.15;
+        const v = (Math.sin(k * th + p + t * w) + 0.6 * Math.sin(k2 * th - t * w * 1.3 + L.seed)
+                 + 0.4 * Math.sin(k3 * th + t * w * 0.7 + L.seed * 2)) / 2;
+        const u = Math.min(1, Math.max(0, 0.5 + 0.5 * v));
+        return Math.pow(u, pw) * 1.3 - 0.2;
+      }
+      default:       return Math.pow(0.5 + 0.5 * Math.sin(k * th + p), pw) * 1.3 - 0.25;
+    }
+  }
+  // many stacked waves must not burst out of the stage: small sums pass unchanged, large ones level off
+  const SOFT = 1.8;
+  const softLimit = D => SOFT * Math.tanh(D / SOFT);
+
+  function angDist(a, b) { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; }
+
+  // small static crayon ring glyph of a wave
+  function drawGlyph(c, L, color) {
+    const g = c.getContext('2d'), s = c.width, r = s * 0.3;
+    g.clearRect(0, 0, s, s);
+    const p = new Path2D();
+    for (let i = 0; i <= 180; i++) {
+      const th = i / 180 * TAU;
+      let w = 1;
+      if (L.spread < 0.99) { const d = angDist(th, L.focus); const sg = 0.12 + L.spread * 2.4; w = Math.exp(-d * d / (2 * sg * sg)); }
+      const v = L.shape === 'radial' ? -0.5 : spatial({ ...L, env: 'steady' }, th, 0.25) * Math.min(1, L.amp + 0.3) * w;
+      const rr = r * (1 + 0.32 * v);
+      const x = s / 2 + rr * Math.cos(th), y = s / 2 + rr * Math.sin(th);
+      i ? p.lineTo(x, y) : p.moveTo(x, y);
+    }
+    p.closePath();
+    crayonStroke(g, p, color, s / 14, 1);
+  }
+
+  // ---------- shape & motion chips ----------
+  const chipEls = { shape: new Map(), env: new Map() };
+  SHAPES.forEach(S => {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.innerHTML = `<canvas width="56" height="56"></canvas><span>${S.label}</span>`;
+    drawGlyph(b.querySelector('canvas'), { ...NEUTRAL, shape: S.key, k: S.k, amp: 0.8, sharp: 0.5, seed: 1 }, '#3d362e');
+    b.addEventListener('click', () => setChoice('shape', S.key));
+    $('#shapeRow').appendChild(b);
+    chipEls.shape.set(S.key, b);
+  });
+  ENVS.forEach(E => {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.innerHTML = `<canvas width="88" height="40"></canvas><span>${E.label}</span>`;
+    const c = b.querySelector('canvas'), p = new Path2D();
+    for (let i = 0; i <= 80; i++) {
+      const e = envelope(E.key, i / 80 * 2, 1, 0, 4), x = i / 80 * c.width, y = c.height - 5 - e * (c.height - 10);
+      i ? p.lineTo(x, y) : p.moveTo(x, y);
+    }
+    crayonStroke(c.getContext('2d'), p, '#3d362e', 3, 1);
+    b.addEventListener('click', () => setChoice('env', E.key));
+    $('#envRow').appendChild(b);
+    chipEls.env.set(E.key, b);
+  });
+  function setChoice(what, key) {
+    const L = selLayer(); if (!L) return;
+    L[what] = key;
+    markTouched();
+    lastAdjust = performance.now() / 1000;
+    renderBars();
+  }
+
+  // ---------- layers ----------
+  function newLayer() {
+    // reuse the lowest free number so colours and names stay tidy after removing a wave
+    let n = 0;
+    while (layers.some(l => l.n === n)) n++;
+    const L = { ...NEUTRAL, id: nextId++, n, short: '波' + (n + 1), c: COLORS[n], seed: Math.random() * 100, born: performance.now() / 1000, lag: 0, stopT: null, ballMix: 1 };
+    layers.push(L);
+    selId = L.id;
+    return L;
+  }
+  function removeLayer(id) {
+    layers = layers.filter(l => l.id !== id);
+    if (!layers.length) newLayer();
+    else if (selId === id) selId = layers[layers.length - 1].id;
+    renderUI();
+  }
+  $('#addBtn').addEventListener('click', () => {
+    if (layers.length >= MAX_LAYERS) { toast(`重ねられるのは${countOf(MAX_LAYERS)}までです`); return; }
+    markTouched();
+    const prev = selLayer(), L = newLayer();
+    renderUI();
+    toast(`${prev.short}の上に${L.short}を重ねました`);
+    const box = $('#lanes'); box.scrollTop = box.scrollHeight;
+  });
+
+  let toastTimer;
+  function toast(msg) {
+    const el = $('#toast'); el.textContent = msg; el.style.opacity = 1;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.style.opacity = 0, 1800);
+  }
+
+  // ---------- rhythm lanes ----------
+  const LANE_SPAN = 4;   // seconds visible in a lane
+  const laneEls = new Map();
+  function renderLanes() {
+    const box = $('#lanes');
+    box.innerHTML = '';
+    laneEls.clear();
+    layers.forEach(L => {
+      const row = document.createElement('div');
+      row.className = 'lane' + (L.id === selId ? ' sel' : '');
+      row.style.setProperty('--c', L.c);
+      row.innerHTML = `<button class="ln"><i></i>${L.short}</button><canvas></canvas><span class="lv"></span><button class="st"></button><button class="x" aria-label="削除">✕</button>`;
+      row.querySelector('.ln').addEventListener('click', () => { selId = L.id; renderSelection(); });
+      row.querySelector('.x').addEventListener('click', () => removeLayer(L.id));
+      row.querySelector('.st').addEventListener('click', () => toggleStop(L));
+      const c = row.querySelector('canvas');
+      let drag = null;
+      c.addEventListener('pointerdown', e => {
+        if (selId !== L.id) { selId = L.id; renderSelection(); }
+        if (isStopped(L)) return;   // nothing to shift while it is held still
+        c.setPointerCapture(e.pointerId);
+        drag = { x: e.clientX, phase: L.phase };
+      });
+      c.addEventListener('pointermove', e => {
+        if (!drag) return;
+        const pxPerSec = c.clientWidth / LANE_SPAN;
+        L.phase = fract(drag.phase + (e.clientX - drag.x) / pxPerSec / L.period);
+      });
+      const end = () => { drag = null; };
+      c.addEventListener('pointerup', end);
+      c.addEventListener('pointercancel', end);
+      box.appendChild(row);
+      const E = { row, c, lv: row.querySelector('.lv'), st: row.querySelector('.st') };
+      laneEls.set(L.id, E);
+      showStop(L, E);
+    });
+  }
+  const fitCanvas = (c, dpr) => {
+    const w = c.clientWidth, h = c.clientHeight;
+    if (!w) return null;
+    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+    const g = c.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    return { g, w, h };
+  };
+  function drawBeatGrid(g, sel, t0l, w, h) {
+    if (!sel || isStopped(sel)) return;
+    g.strokeStyle = 'rgba(90,70,45,0.13)'; g.lineWidth = 1;
+    const t0s = t0l - sel.lag;
+    const first = Math.ceil(t0s / sel.period - sel.phase);
+    for (let n = first; (n + sel.phase) * sel.period < t0s + LANE_SPAN; n++) {
+      const x = ((n + sel.phase) * sel.period - t0s) / LANE_SPAN * w;
+      g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke();
+    }
+  }
+  function drawLanes(t) {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const sel = selLayer(), t0l = t - LANE_SPAN * 0.25, pts = 140;
+    layers.forEach(L => {
+      const E = laneEls.get(L.id); if (!E) return;
+      const F = fitCanvas(E.c, dpr); if (!F) return;
+      const { g, w, h } = F;
+      drawBeatGrid(g, sel, t0l, w, h);
+      const area = new Path2D(), line = new Path2D();
+      area.moveTo(0, h);
+      for (let i = 0; i <= pts; i++) {
+        const e = laneEnv(t0l + i / pts * LANE_SPAN, L);
+        const x = i / pts * w, y = h - 3 - e * L.amp * (h - 6);
+        area.lineTo(x, y); i ? line.lineTo(x, y) : line.moveTo(x, y);
+      }
+      area.lineTo(w, h); area.closePath();
+      const on = L.id === selId;
+      g.globalAlpha = on ? 0.55 : 0.3; g.fillStyle = crayon(g, L.c); g.fill(area);
+      g.globalAlpha = 1;
+      crayonStroke(g, line, L.c, on ? 2.4 : 1.8, on ? 1 : 0.6);
+      g.fillStyle = 'rgba(61,54,46,0.7)';
+      g.fillRect(w * 0.25 - 0.75, 0, 1.5, h);
+      E.lv.innerHTML = isStopped(L) ? '止めています' : `${L.period.toFixed(2)}秒<br>ずれ ${(L.phase * L.period).toFixed(2)}`;
+    });
+    // all waves stacked on top of each other, summed; the scale follows the total strength so it stays steady
+    if (layers.length > 1) {
+      const F = fitCanvas($('#sumLane canvas'), dpr); if (!F) return;
+      const { g, w, h } = F;
+      drawBeatGrid(g, sel, t0l, w, h);
+      const scale = Math.max(1, layers.reduce((a, L) => a + (isStopped(L) ? 0 : L.amp), 0));
+      const area = new Path2D(), line = new Path2D();
+      area.moveTo(0, h);
+      for (let i = 0; i <= pts; i++) {
+        const tt = t0l + i / pts * LANE_SPAN;
+        let sum = 0;
+        layers.forEach(L => { if (!isStopped(L)) sum += laneEnv(tt, L) * L.amp; });
+        const x = i / pts * w, y = h - 3 - sum / scale * (h - 6);
+        area.lineTo(x, y); i ? line.lineTo(x, y) : line.moveTo(x, y);
+      }
+      area.lineTo(w, h); area.closePath();
+      g.globalAlpha = 0.28; g.fillStyle = crayon(g, '#3d362e'); g.fill(area);
+      g.globalAlpha = 1;
+      crayonStroke(g, line, '#3d362e', 2.4, 1);
+      g.fillStyle = 'rgba(61,54,46,0.7)';
+      g.fillRect(w * 0.25 - 0.75, 0, 1.5, h);
+      $('#sumLane .lv').textContent = `動く波 ${layers.filter(L => !isStopped(L)).length}`;
+    }
+  }
+
+  $('#syncBtn').addEventListener('click', () => {
+    const S = selLayer(); if (!S || layers.length < 2) return;
+    const moving = layers.filter(L => !isStopped(L));
+    if (!moving.length || (moving.length === 1 && moving[0] === S)) { toast('そろえる相手の動いている波がありません'); return; }
+    const lag = isStopped(S) ? moving[0].lag : S.lag;
+    moving.forEach(L => { L.period = S.period; L.phase = S.phase; L.lag = lag; });
+    renderBars();
+    toast(`動いている波の間隔を${S.short}（${S.period.toFixed(2)}秒）にそろえました`);
+  });
+  // two taps, because a stack of hand-made waves is easy to lose with one stray touch
+  let clearArmed = null;
+  $('#clearBtn').addEventListener('click', () => {
+    const btn = $('#clearBtn');
+    if (!clearArmed) {
+      btn.textContent = 'もう一度押すと消えます';
+      clearArmed = setTimeout(() => { clearArmed = null; btn.textContent = 'ぜんぶ消す'; }, 2500);
+      return;
+    }
+    clearTimeout(clearArmed); clearArmed = null; btn.textContent = 'ぜんぶ消す';
+    layers = []; newLayer(); renderUI();
+  });
+
+  // ---------- bars ----------
+  const barRow = $('#barRow');
+  const barEls = {};
+  BARS.forEach(b => {
+    const el = document.createElement('div');
+    el.className = 'bar';
+    el.innerHTML = `<span class="end">${b.top}</span>
+      <div class="track"><div class="fill"></div><div class="knob"></div></div>
+      <span class="end">${b.bot}</span><span class="lab">${b.label}</span><span class="val"></span>`;
+    barRow.appendChild(el);
+    const track = el.querySelector('.track');
+    barEls[b.key] = { el, fill: el.querySelector('.fill'), knob: el.querySelector('.knob'), val: el.querySelector('.val') };
+
+    const set = e => {
+      const L = selLayer(); if (!L) return;
+      const r = track.getBoundingClientRect();
+      const n = Math.min(1, Math.max(0, 1 - (e.clientY - r.top) / r.height));
+      L[b.key] = fromNorm(b, n);
+      renderBars();
+    };
+    track.addEventListener('pointerdown', e => { track.setPointerCapture(e.pointerId); adjusting++; markTouched(); set(e); });
+    track.addEventListener('pointermove', e => { if (track.hasPointerCapture(e.pointerId)) set(e); });
+    const release = e => { if (track.hasPointerCapture(e.pointerId)) track.releasePointerCapture(e.pointerId); };
+    track.addEventListener('pointerup', release);
+    track.addEventListener('pointercancel', release);
+    track.addEventListener('lostpointercapture', endAdjust);
+  });
+
+  function renderBars() {
+    const L = selLayer(); if (!L) return;
+    $('#selName').textContent = L.short;
+    $('#selName').style.color = L.c;
+    $('#selState').textContent = isStopped(L) ? 'を止めています（玉には出ません）' : 'をつくっています';
+    $('#envRow').classList.toggle('off', isStopped(L));
+    drawGlyph($('#selIcon'), L, L.c);
+    chipEls.shape.forEach((b, k) => { b.style.setProperty('--c', L.c); b.classList.toggle('on', k === L.shape); });
+    chipEls.env.forEach((b, k) => { b.style.setProperty('--c', L.c); b.classList.toggle('on', k === L.env); });
+    BARS.forEach(b => {
+      const E = barEls[b.key];
+      E.el.style.setProperty('--c', L.c);
+      E.el.classList.toggle('off', b.offFor === L.shape || (!!b.timeOnly && isStopped(L)));
+      const n = toNorm(b, L[b.key]);
+      E.fill.style.height = `calc(${n * 100}% * 0.86 + 14%)`;
+      E.knob.style.bottom = `calc(${n * 100}% * 0.86 + 7%)`;
+      E.val.textContent = b.fmt(L[b.key]);
+    });
+  }
+
+  // ---------- UI refresh ----------
+  function renderSelection() {
+    laneEls.forEach((E, id) => E.row.classList.toggle('sel', id === selId));
+    renderBars();
+  }
+  function renderUI() {
+    renderLanes();
+    $('#saveBtn').disabled = recording;
+    $('#addBtn').disabled = recording || layers.length >= MAX_LAYERS;
+    $('#addBtn').textContent = layers.length >= MAX_LAYERS ? `${countOf(MAX_LAYERS)}まで重ねられます` : '＋ 波を重ねる';
+    $('#clearBtn').disabled = recording;
+    $('#syncBtn').disabled = layers.length < 2;
+    $('#sumLane').classList.toggle('show', layers.length > 1);
+    const s = step3 || recording ? 3 : layers.length > 1 ? 2 : 1;
+    document.querySelectorAll('#steps li').forEach(li => {
+      const n = +li.dataset.s;
+      li.classList.toggle('now', n === s);
+      li.classList.toggle('done', n < s);
+    });
+    renderSelection();
+  }
+
+  // ---------- 3D translucent ball (three.js); falls back to a 2D ball if WebGL/three is unavailable ----------
+  const N = 720;
+  let three = null;
+  function init3D() {
+    if (!window.THREE) return;
+    try {
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setClearColor(0x000000, 0);
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+      const geo = new THREE.SphereGeometry(1, 112, 84);
+      // grey glass-like ball, about 70% opaque: darker at the rim (fresnel),
+      // with contour lines of the pain displacement and faint latitude lines for volume
+      const dsp = new Float32Array(geo.attributes.position.count);
+      const dspAttr = new THREE.BufferAttribute(dsp, 1);
+      geo.setAttribute('aDisp', dspAttr);
+      const glass = back => new THREE.ShaderMaterial({
+        uniforms: { uBack: { value: back ? 1 : 0 } },
+        transparent: true, depthWrite: false, side: back ? THREE.BackSide : THREE.FrontSide,
+        vertexShader: `
+          attribute float aDisp;
+          varying float vDisp; varying vec3 vN; varying vec3 vV; varying vec3 vDir;
+          void main() {
+            vDisp = aDisp; vDir = normalize(position);
+            vec4 mv = modelViewMatrix * vec4(position, 1.0);
+            vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz);
+            gl_Position = projectionMatrix * mv;
+          }`,
+        fragmentShader: `
+          uniform float uBack;
+          varying float vDisp; varying vec3 vN; varying vec3 vV; varying vec3 vDir;
+          void main() {
+            vec3 N = normalize(vN); if (uBack > 0.5) N = -N;
+            vec3 V = normalize(vV);
+            float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 1.7);
+            vec3 L = normalize(vec3(-0.6, 0.7, 0.8));
+            float dif = max(dot(N, L), 0.0);
+            float spec = pow(max(dot(reflect(-L, N), V), 0.0), 48.0);
+            float f = fract(vDisp * 3.0 + 0.5);
+            float contour = 1.0 - smoothstep(0.0, 0.05, min(f, 1.0 - f));
+            float g = fract(asin(clamp(vDir.y, -1.0, 1.0)) / 3.14159 * 12.0);
+            float lat = 1.0 - smoothstep(0.0, 0.05, min(g, 1.0 - g));
+            vec3 ink = vec3(0.22, 0.24, 0.29), body = vec3(0.55, 0.58, 0.65);
+            vec3 col = mix(body, ink, fres * 0.8) + vec3(0.18) * dif * (1.0 - fres);
+            col = mix(col, ink, contour * 0.5);
+            col = mix(col, ink, lat * 0.12);
+            col = mix(col, vec3(1.0), spec);
+            // about 70% opaque in the middle, denser at the rim
+            float a = 0.66 + 0.28 * fres + 0.6 * spec + 0.15 * contour;
+            if (uBack > 0.5) a *= 0.3;
+            gl_FragColor = vec4(col, clamp(a, 0.0, 0.96));
+          }`,
+      });
+      const back = new THREE.Mesh(geo, glass(true));
+      const front = new THREE.Mesh(geo, glass(false));
+      back.renderOrder = 0; front.renderOrder = 1;
+      scene.add(back, front);
+      // per-vertex positions in the per-layer angle tables, around the three axes (angle 0 = right, y down)
+      const pos = geo.attributes.position, n = pos.count;
+      const base = new Float32Array(pos.array);
+      const a1 = new Int16Array(n), a2 = new Int16Array(n), a3 = new Int16Array(n);
+      const w1 = new Float32Array(n), w2 = new Float32Array(n), w3 = new Float32Array(n);
+      const idx = a => Math.floor(fract(a / TAU) * N) % N;
+      for (let i = 0; i < n; i++) {
+        const x = base[i * 3], y = base[i * 3 + 1], z = base[i * 3 + 2];
+        a1[i] = idx(Math.atan2(-y, x)); a2[i] = idx(Math.atan2(z, x)); a3[i] = idx(Math.atan2(z, -y));
+        const q1 = Math.hypot(x, y) * 3, q2 = Math.hypot(x, z), q3 = Math.hypot(y, z), s = q1 + q2 + q3 || 1;
+        w1[i] = q1 / s; w2[i] = q2 / s; w3[i] = q3 / s;
+      }
+      three = { renderer, scene, camera, geo, pos, dsp, dspAttr, base, a1, a2, a3, w1, w2, w3, n, w: 0, h: 0,
+        meshes: [back, front], q: new THREE.Quaternion() };
+    } catch (err) {
+      console.warn('3D unavailable, using 2D ball', err);
+      three = null;
+    }
+  }
+  init3D();
+
+  // ball orientation: three.q turns the ball's own space into view space.
+  // The pain field lives in the ball's space, so it turns with the ball.
+  const spin = { x: 0, y: 0 };   // angular velocity left after a flick (rad/s around view x / y)
+  let resetting = false;
+  const viewDir = th => { const l = Math.hypot(1, 0.7); return [Math.cos(th) / l, -Math.sin(th) / l, 0.7 / l]; };
+  function toObject(v) {
+    if (!three) return v;
+    const w = new THREE.Vector3(v[0], v[1], v[2]).applyQuaternion(three.q.clone().invert());
+    return [w.x, w.y, w.z];
+  }
+  function toView(v) {
+    if (!three) return v;
+    const w = new THREE.Vector3(v[0], v[1], v[2]).applyQuaternion(three.q);
+    return [w.x, w.y, w.z];
+  }
+  function rotateBall(ax, ay, ang) {   // axis given in view space
+    if (!three || !(ang > 0)) return;
+    three.q.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(ax, ay, 0).normalize(), ang));
+  }
+
+  function render3D(cur, R) {
+    const T = three;
+    T.meshes.forEach(m => m.quaternion.copy(T.q));
+    if (T.w !== W || T.h !== H) {
+      T.renderer.setPixelRatio(DPR); T.renderer.setSize(W, H, false);
+      T.w = W; T.h = H;
+    }
+    T.camera.aspect = W / H;
+    T.camera.position.z = H / (2 * R * Math.tan(15 * Math.PI / 180));
+    T.camera.updateProjectionMatrix();
+    const P = T.pos.array, B = T.base;
+    for (let i = 0; i < T.n; i++) {
+      const x = B[i * 3], y = B[i * 3 + 1], z = B[i * 3 + 2];
+      let D = 0;
+      for (let j = 0; j < cur.length; j++) {
+        const c = cur[j];
+        if (c.mix < 0.002) continue;
+        let wf = 1;
+        if (c.L.spread < 0.99) {
+          const dot = Math.max(-1, Math.min(1, x * c.fx + y * c.fy + z * c.fz));
+          const ang = Math.acos(dot);
+          wf = Math.exp(-ang * ang / (2 * c.sigma * c.sigma));
+        }
+        if (wf < 0.002) continue;
+        const s = c.lut[T.a1[i]] * T.w1[i] + c.lut[T.a2[i]] * T.w2[i] + c.lut[T.a3[i]] * T.w3[i];
+        D += s * c.amp * c.mix * wf;
+      }
+      // finger ripples spread over the surface from where the finger touched
+      for (const Tc of touches) {
+        const age = cur.now - Tc.t0, k = Tc.s * 0.35 * Math.exp(-age * 2.5);
+        const d = Math.acos(Math.max(-1, Math.min(1, x * Tc.v[0] + y * Tc.v[1] + z * Tc.v[2])));
+        D += k * Math.exp(-d * d / 0.06) * Math.cos(age * 18 - d * 12);
+      }
+      D = softLimit(D);
+      const r = 1 + 0.2 * D;
+      P[i * 3] = x * r; P[i * 3 + 1] = y * r; P[i * 3 + 2] = z * r;
+      T.dsp[i] = D;
+    }
+    T.pos.needsUpdate = true;
+    T.dspAttr.needsUpdate = true;
+    T.geo.computeVertexNormals();
+    T.renderer.render(T.scene, T.camera);
+  }
+
+  // ---------- canvas sizing ----------
+  let W = 0, H = 0, DPR = 1;
+  const bgCv = document.createElement('canvas'), bgCtx = bgCv.getContext('2d');
+  function resize() {
+    if (recording) return;
+    const r = cv.getBoundingClientRect();
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = r.width; H = r.height;
+    cv.width = bgCv.width = Math.round(W * DPR); cv.height = bgCv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    bgCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const v = bgCtx.createRadialGradient(W / 2, H * 0.45, 0, W / 2, H / 2, Math.max(W, H) * 0.75);
+    v.addColorStop(0, '#fffdf8'); v.addColorStop(1, '#f3ede2');
+    bgCtx.fillStyle = v; bgCtx.fillRect(0, 0, W, H);
+    bgCtx.fillStyle = bgCtx.createPattern(grainCanvas(200, 16, true), 'repeat');
+    bgCtx.fillRect(0, 0, W, H);
+  }
+  new ResizeObserver(resize).observe(cv);
+
+  // ---------- finger interaction on stage ----------
+  // on the ball: drag to turn it (with a little inertia). Around the ball: trace to move where it hurts.
+  const touches = [];   // ripples: {x,y,th,v,t0,s}; v = direction in the ball's space
+  let dragging = null, dragAdjust = false, turning = null;
+  let ballR = 1;
+  function stagePoint(e) {
+    const r = cv.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    const dx = x - (W / 2 + shiftX), dy = y - (H / 2 + shiftY);
+    return { x, y, th: Math.atan2(dy, dx), dist: Math.hypot(dx, dy) };
+  }
+  const addRipple = (p, s, now) => touches.push({ x: p.x, y: p.y, th: p.th, v: toObject(viewDir(p.th)), t0: now, s });
+  function setFocus(L, th) { L.focus = th; L.fvec = toObject(viewDir(th)); }
+  cv.addEventListener('pointerdown', e => {
+    cv.setPointerCapture(e.pointerId);
+    dragging = e.pointerId;
+    markTouched();
+    const p = stagePoint(e), now = performance.now() / 1000;
+    addRipple(p, 1, now);
+    if (three && p.dist < ballR * 1.08) {
+      turning = { x: p.x, y: p.y, t: now };
+      spin.x = spin.y = 0; resetting = false;
+      dragAdjust = false;
+      return;
+    }
+    const L = selLayer();
+    dragAdjust = !!L;
+    if (L) {
+      adjusting++;
+      setFocus(L, p.th);
+      if (L.spread >= 0.99) L.spread = 0.45;
+      renderBars();
+    }
+  });
+  let lastRip = 0, lastIcon = 0;
+  cv.addEventListener('pointermove', e => {
+    if (dragging !== e.pointerId) return;
+    const p = stagePoint(e);
+    const now = performance.now() / 1000;
+    if (turning) {
+      const dx = p.x - turning.x, dy = p.y - turning.y, dt = Math.max(0.008, now - turning.t);
+      rotateBall(dy, dx, Math.hypot(dx, dy) / ballR);
+      spin.x = 0.6 * spin.x + 0.4 * (dy / ballR / dt);
+      spin.y = 0.6 * spin.y + 0.4 * (dx / ballR / dt);
+      turning = { x: p.x, y: p.y, t: now };
+      return;
+    }
+    const L = selLayer();
+    if (L) { setFocus(L, p.th); if (now - lastIcon > 0.1) { renderBars(); lastIcon = now; } }
+    if (now - lastRip > 0.06) { addRipple(p, 0.5, now); lastRip = now; }
+  });
+  const endDrag = e => {
+    if (dragging !== e.pointerId) return;
+    dragging = null;
+    // a finger that stopped before lifting leaves no spin
+    if (turning && performance.now() / 1000 - turning.t > 0.08) spin.x = spin.y = 0;
+    turning = null;
+    if (dragAdjust) endAdjust();
+    dragAdjust = false;
+  };
+  cv.addEventListener('pointerup', endDrag);
+  cv.addEventListener('pointercancel', endDrag);
+
+  const resetBtn = $('#resetBtn');
+  resetBtn.addEventListener('click', () => { spin.x = spin.y = 0; resetting = true; });
+
+  // ---------- render loop ----------
+  const disp = new Float32Array(N);   // composite of all layers (2D, for fallback ball and crumbs)
+  const rip = new Float32Array(N);    // finger ripples
+  const layerDisp = [], layerLut = [];
+  const crumbs = [];
+  const t0 = performance.now() / 1000;
+  let solo = 0;   // 1 = only the ring of the wave being adjusted is shown
+  let lastFrame = t0;
+  let shiftX = 0, shiftY = 0, fitR = 0;   // graphic centre offset and ball radius, eased toward the free area
+
+  function ringPath(cx, cy, rOf) {
+    const p = new Path2D();
+    for (let i = 0; i <= N; i++) {
+      const ii = i % N, th = ii / N * TAU, r = rOf(ii);
+      const x = cx + r * Math.cos(th), y = cy + r * Math.sin(th);
+      i ? p.lineTo(x, y) : p.moveTo(x, y);
+    }
+    p.closePath();
+    return p;
+  }
+
+  // 2D fallback: soft ball with shading
+  function drawBall2D(cx, cy, R) {
+    const body = ringPath(cx, cy, i => Math.max(R * 0.25, R * (1 + 0.24 * disp[i])));
+    const g = ctx.createRadialGradient(cx - R * 0.35, cy - R * 0.4, R * 0.05, cx, cy, R * 1.3);
+    g.addColorStop(0, 'rgba(200,203,210,0.7)'); g.addColorStop(0.55, 'rgba(140,145,156,0.7)'); g.addColorStop(1, 'rgba(70,74,84,0.8)');
+    ctx.fillStyle = g; ctx.fill(body);
+    ctx.strokeStyle = 'rgba(120,100,75,0.25)'; ctx.lineWidth = 1; ctx.stroke(body);
+  }
+
+  function frame() {
+    const now = performance.now() / 1000;
+    const t = now - t0;
+    const fdt = Math.min(0.1, now - lastFrame); lastFrame = now;
+    const sel = selLayer();
+    const kf = 1 - Math.exp(-fdt * 12);
+    // fit the graphic between the tip band at the top and the caption band at the bottom
+    const top = 46, bottom = !touched ? 96 : recording && recName ? 76 : 48;
+    const ah = H - top - bottom;
+    // rings sit closer together as more waves are stacked, so the ball keeps its size
+    const ringStep = layers.length > 1 ? Math.min(0.055, 0.3 / (layers.length - 1)) : 0.055;
+    const reach = 1.36 + ringStep * (layers.length - 1);
+    const tR = Math.max(30, Math.min(W, ah) / 2 / reach);
+    fitR = fitR ? fitR + (tR - fitR) * kf : tR;
+    shiftY += (top + ah / 2 - H / 2 - shiftY) * kf;
+    const cx = W / 2 + shiftX, cy = H / 2 + shiftY;
+    const R = fitR;
+    ballR = R;
+    // inertia after a flick, or easing back to the front
+    if (three && !turning) {
+      const w = Math.hypot(spin.x, spin.y);
+      if (w > 0.02) {
+        rotateBall(spin.x, spin.y, w * fdt);
+        const decay = Math.exp(-fdt * 2.2);
+        spin.x *= decay; spin.y *= decay;
+      }
+      if (resetting) {
+        three.q.slerp(new THREE.Quaternion(), 1 - Math.exp(-fdt * 7));
+        if (1 - Math.abs(three.q.w) < 1e-5) { three.q.identity(); resetting = false; }
+      }
+    }
+    if (three) resetBtn.classList.toggle('show', 1 - Math.abs(three.q.w) > 0.002 && !recording);
+    solo += ((sel && (adjusting > 0 || now - lastAdjust < 0.6) ? 1 : 0) - solo) * kf;
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.drawImage(bgCv, 0, 0, W, H);
+
+    // per-layer state for this frame
+    while (layerDisp.length < layers.length) { layerDisp.push(new Float32Array(N)); layerLut.push(new Float32Array(N)); }
+    const cur = layers.map((L, li) => {
+      const lt = localTime(L, t);
+      const e = layerEnv(lt, L);
+      L.ballMix += ((isStopped(L) ? 0 : 1) - L.ballMix) * (1 - Math.exp(-fdt * 3));
+      const fadeIn = Math.min(1, (now - L.born) / 0.6);
+      // the pain's place is fixed on the ball; follow it on screen as the ball turns
+      if (!L.fvec) L.fvec = toObject(viewDir(L.focus));
+      if (three) { const v = toView(L.fvec); L.focus = Math.atan2(-v[1], v[0]); }
+      return { L, lt, mix: L.ballMix, lut: layerLut[li], amp: L.amp * e * fadeIn * (L.shape === 'radial' ? -0.55 : 1), sigma: 0.12 + L.spread * 2.4,
+        fx: L.fvec[0], fy: L.fvec[1], fz: L.fvec[2] };
+    });
+    cur.now = now;
+
+    // pattern around the ring, shared by the rings and the 3D ball
+    disp.fill(0);
+    cur.forEach((c, li) => {
+      const arr = layerDisp[li], L = c.L;
+      for (let i = 0; i < N; i++) {
+        const th = i / N * TAU;
+        c.lut[i] = spatial(L, th, c.lt);
+        let w = 1;
+        if (L.spread < 0.99) { const d = angDist(th, L.focus); w = Math.exp(-d * d / (2 * c.sigma * c.sigma)); }
+        const v = c.lut[i] * c.amp * w;
+        arr[i] = v; disp[i] += v * c.mix;
+      }
+    });
+
+    // finger ripples push the surface locally
+    rip.fill(0);
+    for (let j = touches.length - 1; j >= 0; j--) {
+      const T = touches[j], age = now - T.t0;
+      if (age > 1.6) { touches.splice(j, 1); continue; }
+      const k = T.s * 0.35 * Math.exp(-age * 2.5);
+      for (let i = 0; i < N; i++) {
+        const d = angDist(i / N * TAU, T.th);
+        rip[i] += k * Math.exp(-d * d / 0.04) * Math.cos(age * 18 - Math.abs(d) * 12);
+      }
+    }
+    for (let i = 0; i < N; i++) disp[i] = softLimit(disp[i] + rip[i]);
+
+    // ripple circles, like pencil rings
+    touches.forEach(T => {
+      const age = now - T.t0;
+      ctx.strokeStyle = `rgba(90,70,45,${0.3 * (1 - age / 1.6) * T.s})`;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(T.x, T.y, 8 + age * 120, 0, TAU); ctx.stroke();
+    });
+
+    // soft contact shadow under the ball
+    ctx.save();
+    ctx.translate(cx, cy + R * 1.22); ctx.scale(1, 0.16);
+    const sh = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 1.05);
+    sh.addColorStop(0, 'rgba(90,70,45,0.22)'); sh.addColorStop(1, 'rgba(90,70,45,0)');
+    ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(0, 0, R * 1.05, 0, TAU); ctx.fill();
+    ctx.restore();
+
+    // each wave as its own crayon ring around the ball; while one is adjusted the others fade
+    // and its ring grows, so the single wave is readable next to the stacked ball
+    ctx.globalCompositeOperation = 'multiply';
+    layers.forEach((L, li) => {
+      const isSel = L.id === selId;
+      const a = isSel ? 0.7 + 0.3 * solo : 0.45 * (1 - solo);
+      if (a < 0.01) return;
+      const base = R * (1.2 + li * ringStep);
+      const gain = R * 0.24 * (isSel ? 0.5 + 0.5 * solo : 0.5);
+      const arr = layerDisp[li];
+      const rr = isSel ? solo : 0;
+      const path = ringPath(cx, cy, i => Math.max(4, base + gain * (arr[i] + rip[i] * rr)));
+      crayonStroke(ctx, path, L.c, isSel ? 2.6 + 1.4 * solo : 2, Math.min(1, a));
+      if (isSel && L.spread < 0.99) {
+        const fr = R * (1.26 + (layers.length - 1) * ringStep);
+        ctx.globalAlpha = Math.min(1, a);
+        ctx.fillStyle = crayon(ctx, L.c);
+        ctx.beginPath(); ctx.arc(cx + fr * Math.cos(L.focus), cy + fr * Math.sin(L.focus), 5, 0, TAU); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    });
+    ctx.globalCompositeOperation = 'source-over';
+
+    // the whole pain: 3D translucent ball, always showing every wave stacked
+    if (three) {
+      render3D(cur, R);
+      ctx.drawImage(three.renderer.domElement, shiftX, shiftY, W, H);
+    } else {
+      drawBall2D(cx, cy, R);
+    }
+
+    // coloured crumbs flick off sharp outward bulges
+    for (let s = 0; s < 4; s++) {
+      const i = Math.floor(Math.random() * N);
+      if (disp[i] > 0.75 && crumbs.length < 200) {
+        const th = i / N * TAU, r = R * (1 + 0.24 * disp[i]);
+        let best = 0, bc = layers[0].c;
+        layers.forEach((L, li) => { if (cur[li].mix > 0.5 && layerDisp[li][i] > best) { best = layerDisp[li][i]; bc = L.c; } });
+        crumbs.push({ x: cx + r * Math.cos(th), y: cy + r * Math.sin(th), c: bc,
+          vx: Math.cos(th) * (40 + disp[i] * 80), vy: Math.sin(th) * (40 + disp[i] * 80), life: 1 });
+      }
+    }
+    for (let j = crumbs.length - 1; j >= 0; j--) {
+      const p = crumbs[j];
+      p.x += p.vx * fdt; p.y += p.vy * fdt; p.vx *= 0.95; p.vy *= 0.95; p.life -= fdt * 1.3;
+      if (p.life <= 0) { crumbs.splice(j, 1); continue; }
+      ctx.globalAlpha = p.life * 0.9;
+      ctx.fillStyle = p.c;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // caption (baked into the video too): the user's name, then how many waves
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    if (recording && recName) {
+      ctx.font = '700 22px "Zen Maru Gothic", "Hiragino Sans", sans-serif';
+      ctx.fillStyle = 'rgba(61,54,46,0.9)';
+      ctx.fillText(recName, cx, H - 40);
+    }
+    if (touched) {
+      ctx.font = '700 14px "Zen Maru Gothic", "Hiragino Sans", sans-serif';
+      ctx.fillStyle = 'rgba(61,54,46,0.5)';
+      const caption = solo > 0.5 && sel ? sel.short + ' を調整中' : waveCountText();
+      ctx.fillText(caption, cx, H - 16);
+    }
+
+    drawLanes(t);
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- name + 10 second recording ----------
+  const DURATION = 10;
+  const nameIn = $('#nameIn');
+  function openSheet(id) { $(id).classList.add('open'); }
+  function closeSheet(id) { $(id).classList.remove('open'); }
+
+  $('#saveBtn').addEventListener('click', () => {
+    if (recording) return;
+    step3 = true; renderUI();
+    openSheet('#nameSheet');
+    setTimeout(() => nameIn.focus(), 50);
+  });
+  $('#nameCancel').addEventListener('click', () => { closeSheet('#nameSheet'); step3 = false; renderUI(); });
+  $('#nameGo').addEventListener('click', startRecording);
+  nameIn.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) startRecording(); });
+
+  function pickMime() {
+    if (!window.MediaRecorder) return null;
+    const c = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    return c.find(m => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || '';
+  }
+
+  function startRecording() {
+    nameIn.blur();
+    closeSheet('#nameSheet');
+    recName = nameIn.value.trim();
+    const mime = pickMime();
+    if (mime === null || !cv.captureStream) {
+      showResult(null, 'このブラウザでは動画の保存に対応していません。iPadのSafari（iPadOS 14.5以降）で開いてください。');
+      return;
+    }
+    const stream = cv.captureStream(30);
+    const opts = { videoBitsPerSecond: 8_000_000 };
+    if (mime) opts.mimeType = mime;
+    let rec;
+    try { rec = new MediaRecorder(stream, opts); }
+    catch (err) { showResult(null, '録画を開始できませんでした：' + err.message); return; }
+    const chunks = [];
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = () => {
+      recording = false;
+      $('#rec').style.display = 'none';
+      stream.getTracks().forEach(tr => tr.stop());
+      renderUI();
+      showResult(new Blob(chunks, { type: rec.mimeType || mime || 'video/webm' }), null);
+    };
+    recording = true;
+    renderUI();
+    $('#rec').style.display = 'flex';
+    rec.start(500);
+    const start = performance.now();
+    const tick = () => {
+      const el = (performance.now() - start) / 1000;
+      $('#recT').textContent = Math.max(0, DURATION - el).toFixed(1);
+      $('#recP').style.width = Math.min(100, el / DURATION * 100) + '%';
+      if (el >= DURATION + 0.3) { if (rec.state !== 'inactive') rec.stop(); return; }
+      requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  let outUrl = null, outFile = null;
+  function showResult(blob, err) {
+    const v = $('#out'), note = $('#outNote');
+    if (outUrl) URL.revokeObjectURL(outUrl);
+    outUrl = null; outFile = null;
+    $('#outName').textContent = recName || '痛みのカタチ';
+    if (!blob) {
+      v.style.display = 'none'; $('#dlBtn').style.display = 'none'; $('#shareBtn').style.display = 'none';
+      note.textContent = err;
+    } else {
+      const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
+      const d = new Date(), z = n => String(n).padStart(2, '0');
+      const stamp = `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`;
+      const safe = recName.replace(/[\\/:*?"<>|\s]+/g, '_').replace(/^_+|_+$/g, '') || 'itami';
+      const fname = `${safe}_${stamp}.${ext}`;
+      outUrl = URL.createObjectURL(blob);
+      outFile = new File([blob], fname, { type: blob.type });
+      v.style.display = ''; v.src = outUrl; v.play().catch(() => {});
+      const dl = $('#dlBtn'); dl.style.display = ''; dl.href = outUrl; dl.download = fname;
+      const canShare = navigator.canShare && navigator.canShare({ files: [outFile] });
+      $('#shareBtn').style.display = canShare ? '' : 'none';
+      dl.classList.toggle('primary', !canShare);
+      note.textContent = `${waveCountText()} ／ 10秒` +
+        (canShare ? '　「共有・写真に保存」から「ビデオを保存」を選ぶと写真アプリに入ります。' : '');
+    }
+    openSheet('#resultSheet');
+  }
+  $('#shareBtn').addEventListener('click', async () => {
+    if (!outFile) return;
+    try { await navigator.share({ files: [outFile], title: recName || '痛みのカタチ' }); } catch (_) {}
+  });
+  $('#closeBtn').addEventListener('click', () => {
+    closeSheet('#resultSheet'); $('#out').pause();
+    step3 = false; renderUI();
+  });
+
+  newLayer();
+  renderUI();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
